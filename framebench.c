@@ -9,13 +9,17 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef BENCH_LZ4
 #define LZ4_STATIC_LINKING_ONLY
 #include "lz4.h"
 #include "lz4hc.h"
 #include "lz4frame.h"
 #include "lz4frame_static.h"
+#endif
 
+#ifdef BENCH_ZSTD
 #include "zstd.h"
+#endif
 
 #define CHECK(err, ...) do { if (err) { \
   fprintf(stderr, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__); \
@@ -24,21 +28,30 @@
   raise(SIGABRT); \
 } } while(0);
 
+#ifdef BENCH_LZ4
 #define LZ4F_CHECK_R(err, ret) do { typeof(err) _err = (err); if (LZ4F_isError(_err)) { fprintf(stderr, "Error!: %s\n", LZ4F_getErrorName(_err)); return (ret); } } while(0);
 
 #define LZ4F_CHECK(err) LZ4F_CHECK_R(err, 0)
+#endif
 
 typedef struct {
   const char *run_name;
   size_t iter;
+#ifdef BENCH_LZ4
   LZ4_stream_t *ctx;
   LZ4_streamHC_t *hcctx;
   LZ4F_cctx *cctx;
   LZ4F_dctx *dctx;
+  const LZ4F_CDict* cdict;
+  LZ4F_preferences_t* prefs;
+  const LZ4F_compressOptions_t* options;
+#endif
+#ifdef BENCH_ZSTD
   ZSTD_CCtx *zcctx;
   ZSTD_DCtx *zdctx;
   ZSTD_CDict **zcdicts;
   ZSTD_DDict *zddict;
+#endif
   const char *dictbuf;
   size_t dictsize;
   char *obuf;
@@ -50,11 +63,9 @@ typedef struct {
   char *checkbuf;
   size_t checksize;
   int clevel;
-  const LZ4F_CDict* cdict;
-  LZ4F_preferences_t* prefs;
-  const LZ4F_compressOptions_t* options;
 } bench_params_t;
 
+#ifdef BENCH_LZ4
 size_t compress_frame(bench_params_t *p) {
   LZ4F_cctx *cctx = p->cctx;
   char *obuf = p->obuf;
@@ -183,7 +194,9 @@ size_t compress_hc_extState(bench_params_t *p) {
 
   return obuf - p->obuf;
 }
+#endif
 
+#ifdef BENCH_ZSTD
 size_t zstd_compress_default(bench_params_t *p) {
   char *obuf = p->obuf;
   size_t osize = p->osize;
@@ -228,7 +241,9 @@ size_t zstd_compress_cdict(bench_params_t *p) {
 
   return oused;
 }
+#endif
 
+#ifdef BENCH_LZ4
 size_t check_lz4(bench_params_t *p, size_t csize) {
   (void)csize;
   memset(p->checkbuf, 0xFF, p->checksize);
@@ -258,14 +273,16 @@ size_t check_lz4f(bench_params_t *p, size_t csize) {
   } while (cleft);
   return !memcmp(p->isample, p->checkbuf, p->isize);
 }
+#endif
 
+#ifdef BENCH_ZSTD
 size_t check_zstd(bench_params_t *p, size_t csize) {
   (void)csize;
   memset(p->checkbuf, 0xFF, p->checksize);
   return ZSTD_decompress_usingDDict(p->zdctx, p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
       && !memcmp(p->isample, p->checkbuf, p->isize);
 }
-
+#endif
 
 uint64_t bench(
     const char *bench_name,
@@ -334,6 +351,7 @@ uint64_t bench(
   return time_taken;
 }
 
+#ifdef BENCH_ZSTD
 ZSTD_CDict **create_zstd_cdicts(int *clevels, size_t numclevels, const char *dict_buf, size_t dict_size) {
   ZSTD_CDict **cdicts;
   int max_level = 0;
@@ -358,6 +376,7 @@ ZSTD_CDict **create_zstd_cdicts(int *clevels, size_t numclevels, const char *dic
 
   return cdicts;
 }
+#endif
 
 int main(int argc, char *argv[]) {
   char *run_name;
@@ -377,12 +396,13 @@ int main(int argc, char *argv[]) {
   char *in_buf;
   FILE *in_file;
 
-  size_t out_size;
+  size_t out_size = 0;
   char *out_buf;
 
   size_t check_size;
   char *check_buf;
 
+#ifdef BENCH_LZ4
   LZ4_stream_t *ctx;
   LZ4_streamHC_t *hcctx;
   LZ4F_cctx *cctx;
@@ -390,14 +410,21 @@ int main(int argc, char *argv[]) {
   LZ4F_CDict *cdict;
   LZ4F_preferences_t prefs;
   LZ4F_compressOptions_t options;
+#endif
 
+#ifdef BENCH_ZSTD
   ZSTD_CCtx *zcctx;
   ZSTD_DCtx *zdctx;
   ZSTD_CDict **zcdicts;
   ZSTD_DDict *zddict;
+#endif
 
+#ifdef BENCH_LZ4
   int clevels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+#endif
+#ifdef BENCH_ZSTD
   int zclevels[] = {-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
+#endif
   unsigned int clevelidx;
 
   bench_params_t params;
@@ -436,6 +463,7 @@ int main(int argc, char *argv[]) {
   check_buf = (char *)malloc(check_size);
   CHECK(!check_buf, "malloc failed");
 
+#ifdef BENCH_LZ4
   memset(&prefs, 0, sizeof(prefs));
   prefs.autoFlush = 1;
   if (in_size < 64 * 1024)
@@ -444,13 +472,6 @@ int main(int argc, char *argv[]) {
 
   memset(&options, 0, sizeof(options));
   options.stableSrc = 1;
-
-  out_size = LZ4F_compressFrameBound(in_size, &prefs);
-  if (ZSTD_compressBound(in_size) > out_size) {
-    out_size = ZSTD_compressBound(in_size);
-  }
-  out_buf = (char *)malloc(out_size);
-  CHECK(!out_buf, "malloc failed");
 
   LZ4F_CHECK_R(LZ4F_createCompressionContext(&cctx, LZ4F_VERSION), 1);
   CHECK(!cctx, "LZ4F_createCompressionContext failed");
@@ -466,7 +487,9 @@ int main(int argc, char *argv[]) {
 
   cdict = LZ4F_createCDict(dict_buf, dict_size);
   CHECK(!cdict, "LZ4F_createCDict failed");
+#endif
 
+#ifdef BENCH_ZSTD
   zcctx = ZSTD_createCCtx();
   CHECK(!zcctx, "ZSTD_createCCtx failed");
 
@@ -478,19 +501,40 @@ int main(int argc, char *argv[]) {
 
   zddict = ZSTD_createDDict(dict_buf, dict_size);
   CHECK(!zddict, "ZSTD_createDDict failed");
+#endif
 
   fprintf(stderr, "dict  size: %zd\n", dict_size);
   fprintf(stderr, "input size: %zd\n", in_size);
 
+#ifdef BENCH_LZ4
+  if (LZ4F_compressFrameBound(in_size, &prefs) > out_size) {
+    out_size = LZ4F_compressFrameBound(in_size, &prefs);
+  }
+#endif
+#ifdef BENCH_ZSTD
+  if (ZSTD_compressBound(in_size) > out_size) {
+    out_size = ZSTD_compressBound(in_size);
+  }
+#endif
+  out_buf = (char *)malloc(out_size);
+  CHECK(!out_buf, "malloc failed");
+
   params.run_name = run_name;
+#ifdef BENCH_LZ4
   params.ctx = ctx;
   params.hcctx = hcctx;
   params.cctx = cctx;
   params.dctx = dctx;
+  params.cdict = cdict;
+  params.prefs = &prefs;
+  params.options = &options;
+#endif
+#ifdef BENCH_ZSTD
   params.zcctx = zcctx;
   params.zdctx = zdctx;
   params.zcdicts = zcdicts;
   params.zddict = zddict;
+#endif
   params.dictbuf = dict_buf;
   params.dictsize = dict_size;
   params.obuf = out_buf;
@@ -501,10 +545,8 @@ int main(int argc, char *argv[]) {
   params.checkbuf = check_buf;
   params.checksize = check_size;
   params.clevel = 1;
-  params.cdict = cdict;
-  params.prefs = &prefs;
-  params.options = &options;
 
+#ifdef BENCH_LZ4
   for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
     params.clevel = clevels[clevelidx];
     params.prefs->compressionLevel = clevels[clevelidx];
@@ -522,7 +564,9 @@ int main(int argc, char *argv[]) {
     bench("LZ4F_compressFrame_usingCDict", compress_frame      , check_lz4f, &params);
     bench("LZ4F_compressBegin_usingCDict", compress_begin      , check_lz4f, &params);
   }
+#endif
 
+#ifdef BENCH_ZSTD
   for (clevelidx = 0; clevelidx < sizeof(zclevels) / sizeof(zclevels[0]); clevelidx++) {
     params.clevel = zclevels[clevelidx];
 
@@ -530,6 +574,7 @@ int main(int argc, char *argv[]) {
     bench("ZSTD_compressCCtx"            , zstd_compress_cctx   , check_zstd, &params);
     bench("ZSTD_compress_usingCDict"     , zstd_compress_cdict  , check_zstd, &params);
   }
+#endif
 
   return 0;
 }
