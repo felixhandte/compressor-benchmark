@@ -7,6 +7,12 @@ ZSTDDIR ?= /home/felixh/prog/zstd
 ZSTDLIBDIR ?= $(ZSTDDIR)/lib
 ZSTDHDRDIR ?= $(ZSTDDIR)/lib
 
+CFLAGS  ?= -O3
+DEBUGFLAGS:= -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow \
+             -Wswitch-enum -Wdeclaration-after-statement -Wstrict-prototypes \
+             -Wundef -Wpointer-arith -Wstrict-aliasing=1
+CFLAGS  += $(DEBUGFLAGS) $(MOREFLAGS)
+FLAGS    = $(CPPFLAGS) $(CFLAGS) $(LDFLAGS)
 
 .PHONY: all
 all: framebench
@@ -20,7 +26,7 @@ libzstd.a: $(ZSTDLIBDIR)/libzstd.a
 	cp $(ZSTDLIBDIR)/libzstd.a libzstd.a
 
 framebench: framebench.c liblz4.a libzstd.a
-	$(CC) -I$(LZ4LIBDIR) -I$(ZSTDLIBDIR) -o framebench framebench.c liblz4.a libzstd.a
+	$(CC) $(CFLAGS) -I$(LZ4LIBDIR) -I$(ZSTDLIBDIR) -o framebench framebench.c liblz4.a libzstd.a
 
 
 .PHONY: clean
