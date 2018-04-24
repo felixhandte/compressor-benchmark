@@ -34,6 +34,8 @@
 #define LZ4F_CHECK(err) LZ4F_CHECK_R(err, 0)
 #endif
 
+#define INITIAL_REPETITIONS 4
+
 typedef struct {
   const char *run_name;
   size_t iter;
@@ -294,7 +296,7 @@ uint64_t bench(
   size_t i, osize = 0, o = 0;
   size_t time_taken = 0;
   uint64_t total_repetitions = 0;
-  uint64_t repetitions = 2;
+  uint64_t repetitions = INITIAL_REPETITIONS;
 
   if (clock_gettime(CLOCK_MONOTONIC_RAW, &start)) return 0;
 
@@ -341,7 +343,7 @@ uint64_t bench(
 
   fprintf(
       stderr,
-      "%-19s: %-30s @ lvl %2d: %8ld B -> %8ld B, %6ld iters, %10ld ns, %10ld ns/iter, %7.2lf MB/s\n",
+      "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B, %7ld iters, %10ld ns, %10ld ns/iter, %7.2lf MB/s\n",
       params->run_name, bench_name, params->clevel,
       params->isize, osize / total_repetitions,
       total_repetitions, time_taken, time_taken / total_repetitions,
@@ -423,7 +425,7 @@ int main(int argc, char *argv[]) {
   int clevels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 #endif
 #ifdef BENCH_ZSTD
-  int zclevels[] = {-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
+  int zclevels[] = {-20, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
 #endif
   unsigned int clevelidx;
 
@@ -503,8 +505,8 @@ int main(int argc, char *argv[]) {
   CHECK(!zddict, "ZSTD_createDDict failed");
 #endif
 
-  fprintf(stderr, "dict  size: %zd\n", dict_size);
-  fprintf(stderr, "input size: %zd\n", in_size);
+  // fprintf(stderr, "dict  size: %zd\n", dict_size);
+  // fprintf(stderr, "input size: %zd\n", in_size);
 
 #ifdef BENCH_LZ4
   if (LZ4F_compressFrameBound(in_size, &prefs) > out_size) {
@@ -549,29 +551,83 @@ int main(int argc, char *argv[]) {
 #ifdef BENCH_LZ4
   for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
     params.clevel = clevels[clevelidx];
-    params.prefs->compressionLevel = clevels[clevelidx];
-    params.cdict = NULL;
-
     bench("LZ4_compress_default"         , compress_default    , check_lz4 , &params);
+  }
+  
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
     bench("LZ4_compress_fast_extState"   , compress_extState   , check_lz4 , &params);
+  }
+  
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
     bench("LZ4_compress_HC"              , compress_hc         , check_lz4 , &params);
+  }
+  
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
     bench("LZ4_compress_HC_extStateHC"   , compress_hc_extState, check_lz4 , &params);
+  }
+
+  params.cdict = NULL;
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
+    params.prefs->compressionLevel = clevels[clevelidx];
     bench("LZ4F_compressFrame"           , compress_frame      , check_lz4f, &params);
+  }
+
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
+    params.prefs->compressionLevel = clevels[clevelidx];
     bench("LZ4F_compressBegin"           , compress_begin      , check_lz4f, &params);
-
-    params.cdict = cdict;
-
+  }
+  
+  params.cdict = cdict;
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
+    params.prefs->compressionLevel = clevels[clevelidx];
     bench("LZ4F_compressFrame_usingCDict", compress_frame      , check_lz4f, &params);
+  }
+
+  for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+    params.clevel = clevels[clevelidx];
+    params.prefs->compressionLevel = clevels[clevelidx];
     bench("LZ4F_compressBegin_usingCDict", compress_begin      , check_lz4f, &params);
   }
+
+
+  // for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
+  //   params.clevel = clevels[clevelidx];
+  //   params.prefs->compressionLevel = clevels[clevelidx];
+  //   params.cdict = NULL;
+
+  //   bench("LZ4_compress_default"         , compress_default    , check_lz4 , &params);
+  //   bench("LZ4_compress_fast_extState"   , compress_extState   , check_lz4 , &params);
+  //   bench("LZ4_compress_HC"              , compress_hc         , check_lz4 , &params);
+  //   bench("LZ4_compress_HC_extStateHC"   , compress_hc_extState, check_lz4 , &params);
+  //   bench("LZ4F_compressFrame"           , compress_frame      , check_lz4f, &params);
+  //   bench("LZ4F_compressBegin"           , compress_begin      , check_lz4f, &params);
+
+  //   params.cdict = cdict;
+
+  //   bench("LZ4F_compressFrame_usingCDict", compress_frame      , check_lz4f, &params);
+  //   bench("LZ4F_compressBegin_usingCDict", compress_begin      , check_lz4f, &params);
+  // }
 #endif
 
 #ifdef BENCH_ZSTD
   for (clevelidx = 0; clevelidx < sizeof(zclevels) / sizeof(zclevels[0]); clevelidx++) {
     params.clevel = zclevels[clevelidx];
-
     bench("ZSTD_compress"                , zstd_compress_default, check_zstd, &params);
+  }
+
+  for (clevelidx = 0; clevelidx < sizeof(zclevels) / sizeof(zclevels[0]); clevelidx++) {
+    params.clevel = zclevels[clevelidx];
     bench("ZSTD_compressCCtx"            , zstd_compress_cctx   , check_zstd, &params);
+  }
+
+  for (clevelidx = 0; clevelidx < sizeof(zclevels) / sizeof(zclevels[0]); clevelidx++) {
+    params.clevel = zclevels[clevelidx];
     bench("ZSTD_compress_usingCDict"     , zstd_compress_cdict  , check_zstd, &params);
   }
 #endif
