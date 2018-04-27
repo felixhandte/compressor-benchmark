@@ -300,7 +300,8 @@ uint64_t bench(
 
   if (clock_gettime(CLOCK_MONOTONIC_RAW, &start)) return 0;
 
-  while (time_taken < 25 * 1000 * 1000) { // benchmark over at least 1ms
+  while (time_taken < 25llu * 1000 * 1000 * 10) { // benchmark over at least .25s
+  // while (time_taken < 25llu * 1000 * 1000) { // benchmark over at least 25ms
     if (total_repetitions) {
       repetitions = total_repetitions; // double previous
     }
@@ -310,17 +311,23 @@ uint64_t bench(
       if (params->num_ibuf == 1) {
         params->isample = params->ibuf;
       } else {
-        params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
+        params->isample = params->ibuf;
+        // params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
       }
       o = fun(params);
       if (!o) {
         fprintf(
             stderr,
-            "%-19s: %-30s @ lvl %2d: %8ld B: FAILED!\n",
+            "%-19s: %-30s @ lvl %3d: %8ld B: FAILED!\n",
             params->run_name, bench_name, params->clevel,
             params->isize);
         return 0;
       }
+      // fprintf(
+      //     stderr,
+      //     "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B\n",
+      //     params->run_name, bench_name, params->clevel,
+      //     params->isize, o);
       osize += o;
     }
 
@@ -335,7 +342,7 @@ uint64_t bench(
   if (!o) {
     fprintf(
         stderr,
-        "%-19s: %-30s @ lvl %2d: %8ld B: CHECK FAILED!\n",
+        "%-19s: %-30s @ lvl %3d: %8ld B: CHECK FAILED!\n",
         params->run_name, bench_name, params->clevel,
         params->isize);
     return 0;
@@ -505,9 +512,6 @@ int main(int argc, char *argv[]) {
   CHECK(!zddict, "ZSTD_createDDict failed");
 #endif
 
-  // fprintf(stderr, "dict  size: %zd\n", dict_size);
-  // fprintf(stderr, "input size: %zd\n", in_size);
-
 #ifdef BENCH_LZ4
   if (LZ4F_compressFrameBound(in_size, &prefs) > out_size) {
     out_size = LZ4F_compressFrameBound(in_size, &prefs);
@@ -594,25 +598,6 @@ int main(int argc, char *argv[]) {
     params.prefs->compressionLevel = clevels[clevelidx];
     bench("LZ4F_compressBegin_usingCDict", compress_begin      , check_lz4f, &params);
   }
-
-
-  // for (clevelidx = 0; clevelidx < sizeof(clevels) / sizeof(clevels[0]); clevelidx++) {
-  //   params.clevel = clevels[clevelidx];
-  //   params.prefs->compressionLevel = clevels[clevelidx];
-  //   params.cdict = NULL;
-
-  //   bench("LZ4_compress_default"         , compress_default    , check_lz4 , &params);
-  //   bench("LZ4_compress_fast_extState"   , compress_extState   , check_lz4 , &params);
-  //   bench("LZ4_compress_HC"              , compress_hc         , check_lz4 , &params);
-  //   bench("LZ4_compress_HC_extStateHC"   , compress_hc_extState, check_lz4 , &params);
-  //   bench("LZ4F_compressFrame"           , compress_frame      , check_lz4f, &params);
-  //   bench("LZ4F_compressBegin"           , compress_begin      , check_lz4f, &params);
-
-  //   params.cdict = cdict;
-
-  //   bench("LZ4F_compressFrame_usingCDict", compress_frame      , check_lz4f, &params);
-  //   bench("LZ4F_compressBegin_usingCDict", compress_begin      , check_lz4f, &params);
-  // }
 #endif
 
 #ifdef BENCH_ZSTD
