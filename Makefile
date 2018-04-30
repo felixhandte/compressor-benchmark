@@ -48,4 +48,12 @@ framebench-zstd: framebench.c libzstd.a
 
 .PHONY: clean
 clean:
-	rm -f framebench framebench-* liblz4.a libzstd.a
+	rm -f framebench framebench-zstd framebench-lz4 liblz4.a libzstd.a
+
+.PHONY: clean-zstd
+clean-zstd:
+	$(MAKE) -C $(ZSTDLIBDIR) clean
+
+.PHONY: clean-lz4
+clean-lz4:
+	$(MAKE) -C $(LZ4LIBDIR) clean

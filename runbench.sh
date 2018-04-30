@@ -1,57 +1,64 @@
-# g rev-list --abbrev-commit dev..ref-dict-table-test-22 | tr '\n' ' '
+# g rev-list --abbrev-commit dev..HEAD | tr '\n' ' '
 
-# export BRANCHES="d203a72 01be2e3 987dfc2 bac7f3d b8f143e 1ac0b6c e56b501"
-# export BRANCHES="8aa4578 50d3ed6 52ac9f2 0cecaf5 553b7ac 4d94029"
-export BRANCHES="bb3fa11 6c0e0f3 824d15e 9ad15ee a3bb38b 44504aa 05e3489"
+export BRANCHES="c32e031 b2637ab 62d7cdc 5b67c7d 6c23f03 dfed9fa"
 
-export LZ4DIR="/data/users/felixh/lz4"
-# export LZ4DIR="/home/felixh/prog/lz4"
-export TESTSDIR="$LZ4DIR/tests"
-export BINDIR="$TESTSDIR/bench/bin"
-export LOGSDIR="/$TESTSDIR/bench/data"
-export TMPDIR="$TESTSDIR/bench/tmp"
-export SILESIADIR="/data/users/felixh/silesia"
-# export SILESIADIR="/home/felix/prog/silesia"
-export COMPILERS="gcc clang"
+export PROGDIR="/home/felix/prog"
 
-# mkdir -p $BINDIR $LOGSDIR $TMPDIR
+export BENCHDIR="$PROGDIR/compressor-benchmark"
+export LZ4DIR="$PROGDIR/lz4"
+export SILESIADIR="$PROGDIR/silesia"
+export BINDIR="$BENCHDIR/bench/bin"
+export LOGSDIR="$BENCHDIR/bench/data"
+export TMPDIR="$BENCHDIR/bench/tmp"
 
-for BRANCH in $BRANCHES; do
-  for COMPILER in $COMPILERS; do
-    if [ ! -e $BINDIR/framebench-$BRANCH-$COMPILER ]; then
-      if (cd $TESTSDIR; git co $BRANCH); then
-        make -C $TESTSDIR/.. clean
-        CC=$COMPILER make -C $TESTSDIR -j32 framebench MOREFLAGS="-O3 -march=native -mtune=native"
-        mv $TESTSDIR/framebench $BINDIR/framebench-$BRANCH-$COMPILER
-      fi
-    fi
-  done
-done
+export COMPILERS="gcc clang-4.0"
+export EXENAME="framebench-lz4"
 
 export CORPUSES="$(ls $SILESIADIR)"
 # export SIZES="$(python -c 'print(" ".join(str(3 * 2 ** ((i - 3) / 2) if i % 2 else 2 ** (i / 2)) for i in range(12, 41)))')"
 export SIZES="$(python -c 'print(" ".join(str(3 * 2 ** ((i - 3) / 2) if i % 2 else 2 ** (i / 2)) for i in range(6, 59)))')"
 
+# mkdir -p $BINDIR $LOGSDIR $TMPDIR
+
+for BRANCH in $BRANCHES; do
+  for COMPILER in $COMPILERS; do
+    echo $BRANCH $COMPILER
+    if [ ! -e $BINDIR/$EXENAME-$BRANCH-$COMPILER ]; then
+      if (cd $LZ4DIR; git co $BRANCH); then
+        if make -C $LZ4DIR clean && \
+           make -C $BENCHDIR clean && \
+           make -C $BENCHDIR $EXENAME -j32 CC=$COMPILER MOREFLAGS="-O3 -march=native -mtune=native -DBENCH_LZ4_COMPRESSFRAME_USINGCDICT_TAKES_CCTX -DBENCH_LZ4_HAS_FASTRESET" || \
+           make -C $BENCHDIR $EXENAME -j32 CC=$COMPILER MOREFLAGS="-O3 -march=native -mtune=native"; then
+          mv $BENCHDIR/$EXENAME $BINDIR/$EXENAME-$BRANCH-$COMPILER
+        else
+          make -C $LZ4DIR clean
+          make -C $BENCHDIR clean
+        fi
+      fi
+    fi
+  done
+done
+
 for i in $(seq 1000); do
   for SIZE in $SIZES; do
     for CORPUS in $CORPUSES; do
       export CF=$SILESIADIR/$CORPUS
-      export DICT=$TMPDIR/tmp-$CORPUS-dict
+      export DICT=$TMPDIR/$CORPUS-dict
       if [ ! -e $DICT ]; then
         tail -c 65536 $CF > $DICT
       fi
       if [ "$(wc -c < $CF)" -ge "$SIZE" ]; then
-        if [ ! -e $TMPDIR/tmp-$CORPUS-in-$SIZE ]; then
-          head -c $SIZE $CF > $TMPDIR/tmp-$CORPUS-in-$SIZE
+        if [ ! -e $TMPDIR/$CORPUS-in-$SIZE ]; then
+          head -c $SIZE $CF > $TMPDIR/$CORPUS-in-$SIZE
         fi
         for COMPILER in $(echo $COMPILERS | tr ' ' '\n' | shuf | tr '\n' ' '); do
           for BRANCH in $(echo $BRANCHES | tr ' ' '\n' | shuf | tr '\n' ' '); do
             echo $CORPUS $SIZE $COMPILER $BRANCH
-            $BINDIR/framebench-$BRANCH-$COMPILER $BRANCH-$COMPILER $DICT $TMPDIR/tmp-$CORPUS-in-$SIZE |& \
+            $BINDIR/$EXENAME-$BRANCH-$COMPILER $BRANCH-$COMPILER $DICT $TMPDIR/$CORPUS-in-$SIZE |& \
               tee -a $LOGSDIR/data-$CORPUS-$BRANCH-$COMPILER &
           done
+          wait
         done
-        wait
       fi
     done
   done

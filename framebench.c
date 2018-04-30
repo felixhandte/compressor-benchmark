@@ -34,7 +34,14 @@
 #define LZ4F_CHECK(err) LZ4F_CHECK_R(err, 0)
 #endif
 
-#define INITIAL_REPETITIONS 4
+#ifndef BENCH_INITIAL_REPETITIONS
+#define BENCH_INITIAL_REPETITIONS 4
+#endif
+
+
+#ifndef BENCH_TARGET_NANOSEC
+#define BENCH_TARGET_NANOSEC (25ull * 1000 * 1000)
+#endif
 
 typedef struct {
   const char *run_name;
@@ -69,7 +76,9 @@ typedef struct {
 
 #ifdef BENCH_LZ4
 size_t compress_frame(bench_params_t *p) {
+#ifdef BENCH_LZ4_COMPRESSFRAME_USINGCDICT_TAKES_CCTX
   LZ4F_cctx *cctx = p->cctx;
+#endif
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -82,7 +91,9 @@ size_t compress_frame(bench_params_t *p) {
   prefs->frameInfo.contentSize = isize;
 
   oused = LZ4F_compressFrame_usingCDict(
+#ifdef BENCH_LZ4_COMPRESSFRAME_USINGCDICT_TAKES_CCTX
     cctx,
+#endif
     obuf,
     osize,
     isample,
@@ -153,8 +164,13 @@ size_t compress_extState(bench_params_t *p) {
   char *oend = obuf + osize;
   size_t oused;
 
+#ifdef BENCH_LZ4_HAS_FASTRESET
   oused = LZ4_compress_fast_extState_fastReset(
       ctx, isample, obuf, isize, oend - obuf, clevel);
+#else
+  oused = LZ4_compress_fast_extState(
+      ctx, isample, obuf, isize, oend - obuf, clevel);
+#endif
   obuf += oused;
 
   return obuf - p->obuf;
@@ -296,12 +312,11 @@ uint64_t bench(
   size_t i, osize = 0, o = 0;
   size_t time_taken = 0;
   uint64_t total_repetitions = 0;
-  uint64_t repetitions = INITIAL_REPETITIONS;
+  uint64_t repetitions = BENCH_INITIAL_REPETITIONS;
 
   if (clock_gettime(CLOCK_MONOTONIC_RAW, &start)) return 0;
 
-  while (time_taken < 25llu * 1000 * 1000 * 10) { // benchmark over at least .25s
-  // while (time_taken < 25llu * 1000 * 1000) { // benchmark over at least 25ms
+  while (time_taken < BENCH_TARGET_NANOSEC) {
     if (total_repetitions) {
       repetitions = total_repetitions; // double previous
     }
@@ -311,8 +326,7 @@ uint64_t bench(
       if (params->num_ibuf == 1) {
         params->isample = params->ibuf;
       } else {
-        params->isample = params->ibuf;
-        // params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
+        params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
       }
       o = fun(params);
       if (!o) {
@@ -323,11 +337,6 @@ uint64_t bench(
             params->isize);
         return 0;
       }
-      // fprintf(
-      //     stderr,
-      //     "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B\n",
-      //     params->run_name, bench_name, params->clevel,
-      //     params->isize, o);
       osize += o;
     }
 
