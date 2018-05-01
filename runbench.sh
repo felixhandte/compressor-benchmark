@@ -43,9 +43,12 @@ for i in $(seq 1000); do
   for SIZE in $SIZES; do
     for CORPUS in $CORPUSES; do
       export CF=$SILESIADIR/$CORPUS
-      export DICT=$TMPDIR/$CORPUS-dict
+      export DICT=$BENCHDIR/bench/dicts/$CORPUS.zstd-dict
       if [ ! -e $DICT ]; then
-        tail -c 65536 $CF > $DICT
+        export DICT=$TMPDIR/$CORPUS-dict
+        if [ ! -e $DICT ]; then
+          tail -c 65536 $CF > $DICT
+        fi
       fi
       if [ "$(wc -c < $CF)" -ge "$SIZE" ]; then
         if [ ! -e $TMPDIR/$CORPUS-in-$SIZE ]; then

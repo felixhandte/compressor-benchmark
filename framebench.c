@@ -522,6 +522,9 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef BENCH_LZ4
+  if ((size_t)LZ4_compressBound(in_size) > out_size) {
+    out_size = LZ4_compressBound(in_size);
+  }
   if (LZ4F_compressFrameBound(in_size, &prefs) > out_size) {
     out_size = LZ4F_compressFrameBound(in_size, &prefs);
   }

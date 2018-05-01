@@ -18,7 +18,7 @@ import subprocess
 # BRANCH_STRS = "0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 52ac9f2 0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 4d94029"
-BRANCH_STRS = "a3bb38b 44504aa 05e3489"
+BRANCH_STRS = "c32e031 b2637ab 62d7cdc 5b67c7d 6c23f03 dfed9fa"
 BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
 
 BRANCH_PAIRS = [
@@ -62,8 +62,9 @@ BRANCHES = tuple(BRANCHES)
 
 # TEST_DIR = "/home/felixh/dev/home/felixh/local/lz4/tests"
 TEST_DIR = "/home/felixh/prog/lz4/tests"
-DATA_DIR = os.path.join(TEST_DIR, "bench/data")
-GEN_DIR = os.path.join(TEST_DIR, "bench/gen")
+BENCH_DIR = "/home/felix/prog/compressor-benchmark"
+DATA_DIR = os.path.join(BENCH_DIR, "bench/data")
+GEN_DIR = os.path.join(BENCH_DIR, "bench/gen")
 
 
 WEIGHTS_FILE = "managed-compression-b64-lengths-and-weights"
@@ -293,7 +294,7 @@ def main():
     "x-ray"
   )
   compilers = (
-    "clang",
+    "clang-4.0",
     "gcc",
   )
   clevels = list(range(1,13))
@@ -329,13 +330,13 @@ def main():
   max_y = max(r[1] for r in yranges + [(Y_MIN, Y_MAX)])
 
   fs = (
-      # "LZ4_compress_default",
-      # "LZ4_compress_fast_extState",
+      "LZ4_compress_default",
+      "LZ4_compress_fast_extState",
       "LZ4_compress_HC",
       "LZ4_compress_HC_extStateHC",
-      # "LZ4F_compressBegin",
+      "LZ4F_compressBegin",
       "LZ4F_compressFrame",
-      # "LZ4F_compressBegin_usingCDict",
+      "LZ4F_compressBegin_usingCDict",
       "LZ4F_compressFrame_usingCDict",
   )
 
