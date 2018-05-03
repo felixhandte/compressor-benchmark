@@ -10,7 +10,7 @@ ZSTDHDRDIR ?= $(ZSTDDIR)/lib
 ZSTDFLAGS = -DBENCH_ZSTD -I$(ZSTDLIBDIR)
 LZ4FLAGS = -DBENCH_LZ4 -I$(LZ4LIBDIR)
 
-CFLAGS  ?= -O3
+CFLAGS  ?= -O3 -DNDEBUG -march=native -mtune=native
 DEBUGFLAGS:= -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow \
              -Wswitch-enum -Wdeclaration-after-statement -Wstrict-prototypes \
              -Wundef -Wpointer-arith -Wstrict-aliasing=1

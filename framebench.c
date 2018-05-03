@@ -38,9 +38,18 @@
 #define BENCH_INITIAL_REPETITIONS 4
 #endif
 
+#ifndef BENCH_STARTING_ITER
+#define BENCH_STARTING_ITER 0
+#endif
 
 #ifndef BENCH_TARGET_NANOSEC
 #define BENCH_TARGET_NANOSEC (25ull * 1000 * 1000)
+#endif
+
+#ifndef BENCH_DONT_RANDOMIZE_INPUT
+#ifndef BENCH_RANDOMIZE_INPUT
+#define BENCH_RANDOMIZE_INPUT
+#endif
 #endif
 
 typedef struct {
@@ -321,12 +330,16 @@ uint64_t bench(
       repetitions = total_repetitions; // double previous
     }
 
-    for (i = 0; i < repetitions; i++) {
+    for (i = BENCH_STARTING_ITER; i < BENCH_STARTING_ITER + repetitions; i++) {
       params->iter = i;
       if (params->num_ibuf == 1) {
         params->isample = params->ibuf;
       } else {
+#ifdef BENCH_RANDOMIZE_INPUT
         params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
+#else
+        params->isample = params->ibuf + ((i * 2654435761U) % params->num_ibuf) * params->isize;
+#endif
       }
       o = fun(params);
       if (!o) {
@@ -337,6 +350,11 @@ uint64_t bench(
             params->isize);
         return 0;
       }
+      // fprintf(
+      //     stderr,
+      //     "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B: iter %8ld\n",
+      //     params->run_name, bench_name, params->clevel,
+      //     params->isize, o, i);
       osize += o;
     }
 
@@ -347,13 +365,13 @@ uint64_t bench(
     total_repetitions += repetitions;
   }
 
-  o = checkfun(params, o);
-  if (!o) {
+  if (!checkfun(params, o)) {
     fprintf(
         stderr,
-        "%-19s: %-30s @ lvl %3d: %8ld B: CHECK FAILED!\n",
+        "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B: CHECK FAILED!\n",
         params->run_name, bench_name, params->clevel,
-        params->isize);
+        params->isize, o);
+    raise(SIGABRT);
     return 0;
   }
 
@@ -438,10 +456,13 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef BENCH_LZ4
-  int clevels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  // int clevels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  int clevels[] = {1, 2};
 #endif
 #ifdef BENCH_ZSTD
-  int zclevels[] = {-20, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
+  // int zclevels[] = {-20, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
+  int zclevels[] = {-5, -1, 1, 2};
+  // int zclevels[] = {1};
 #endif
   unsigned int clevelidx;
 

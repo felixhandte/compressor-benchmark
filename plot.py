@@ -18,7 +18,8 @@ import subprocess
 # BRANCH_STRS = "0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 52ac9f2 0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 4d94029"
-BRANCH_STRS = "c32e031 b2637ab 62d7cdc 5b67c7d 6c23f03 dfed9fa"
+BRANCH_STRS = "5406c2e c32e031 dfed9fa"
+# BRANCH_STRS = "dbf373a b095bff"
 BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
 
 BRANCH_PAIRS = [
@@ -63,7 +64,8 @@ BRANCHES = tuple(BRANCHES)
 # TEST_DIR = "/home/felixh/dev/home/felixh/local/lz4/tests"
 TEST_DIR = "/home/felixh/prog/lz4/tests"
 BENCH_DIR = "/home/felix/prog/compressor-benchmark"
-DATA_DIR = os.path.join(BENCH_DIR, "bench/data")
+# DATA_DIR = os.path.join(BENCH_DIR, "bench/data")
+DATA_DIR = os.path.join(BENCH_DIR, "bench/dev-data")
 GEN_DIR = os.path.join(BENCH_DIR, "bench/gen")
 
 
@@ -87,10 +89,10 @@ MIN_INPUT_SIZE = 1
 
 Y_SCALE = 3
 Y_INC = 2
-Y_ZERO_LOG = 0
+Y_ZERO_LOG = 4
 
-Y_MIN_LOG = 0
-Y_MAX_LOG = 10
+Y_MIN_LOG = 2
+Y_MAX_LOG = 8
 
 Y_MIN = Y_INC ** Y_MIN_LOG
 Y_MAX = Y_INC ** Y_MAX_LOG
@@ -99,8 +101,8 @@ X_INC = 2
 X_ZERO_LOG = 6
 
 # pos
-X_MIN_LOG = 3
-X_MAX_LOG = 24
+X_MIN_LOG = 6
+X_MAX_LOG = 20
 
 X_MIN = X_INC ** X_MIN_LOG
 X_MAX = X_INC ** X_MAX_LOG
@@ -294,10 +296,15 @@ def main():
     "x-ray"
   )
   compilers = (
-    "clang-4.0",
+    "clang",
+    "clang-7.0",
     "gcc",
+    "gcc-6.4",
+    "gcc-7.2",
+    # "gcc",
+    # "clang-4.0",
   )
-  clevels = list(range(1,13))
+  clevels = list(range(-100,100))
 
   branches = BRANCHES
   start_branch = branches[0]
@@ -330,14 +337,17 @@ def main():
   max_y = max(r[1] for r in yranges + [(Y_MIN, Y_MAX)])
 
   fs = (
-      "LZ4_compress_default",
-      "LZ4_compress_fast_extState",
-      "LZ4_compress_HC",
-      "LZ4_compress_HC_extStateHC",
-      "LZ4F_compressBegin",
-      "LZ4F_compressFrame",
-      "LZ4F_compressBegin_usingCDict",
+      # "LZ4_compress_default",
+      # "LZ4_compress_fast_extState",
+      # "LZ4_compress_HC",
+      # "LZ4_compress_HC_extStateHC",
+      # "LZ4F_compressBegin",
+      # "LZ4F_compressFrame",
+      # "LZ4F_compressBegin_usingCDict",
       "LZ4F_compressFrame_usingCDict",
+      # "ZSTD_compress",
+      # "ZSTD_compressCCtx",
+      # "ZSTD_compress_usingCDict",
   )
 
   if not os.path.exists(GEN_DIR):
@@ -723,6 +733,7 @@ def set_up_render(prefix, plot, png_files, pdflatex_cmds, convert_cmds):
     pdf_file,
     "-quality", "100",
     "-sharpen", "0x1.0",
+    "-flatten",
     png_file,
   ]
   convert_cmds.append(convert_cmd)
