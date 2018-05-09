@@ -18,8 +18,8 @@ import subprocess
 # BRANCH_STRS = "0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 52ac9f2 0cecaf5 553b7ac 4d94029"
 # BRANCH_STRS = "8aa4578 50d3ed6 4d94029"
-BRANCH_STRS = "5406c2e c32e031 dfed9fa"
-# BRANCH_STRS = "dbf373a b095bff"
+# BRANCH_STRS = "5406c2e c32e031 dfed9fa"
+BRANCH_STRS = "3bc57db 1f86f20 dbf373a b095bff"
 BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
 
 BRANCH_PAIRS = [
@@ -344,10 +344,10 @@ def main():
       # "LZ4F_compressBegin",
       # "LZ4F_compressFrame",
       # "LZ4F_compressBegin_usingCDict",
-      "LZ4F_compressFrame_usingCDict",
-      # "ZSTD_compress",
-      # "ZSTD_compressCCtx",
-      # "ZSTD_compress_usingCDict",
+      # "LZ4F_compressFrame_usingCDict",
+      "ZSTD_compress",
+      "ZSTD_compressCCtx",
+      "ZSTD_compress_usingCDict",
   )
 
   if not os.path.exists(GEN_DIR):
