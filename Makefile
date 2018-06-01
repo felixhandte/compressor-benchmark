@@ -3,9 +3,13 @@ LZ4DIR ?= /home/felix/prog/lz4
 LZ4LIBDIR ?= $(LZ4DIR)/lib
 LZ4HDRDIR ?= $(LZ4DIR)/lib
 
+LZ42DIR ?= /home/felix/prog/lz4-2
+
 ZSTDDIR ?= /home/felix/prog/zstd
 ZSTDLIBDIR ?= $(ZSTDDIR)/lib
 ZSTDHDRDIR ?= $(ZSTDDIR)/lib
+
+ZSTD2DIR ?= /home/felix/prog/zstd-2
 
 ZSTDFLAGS = -DBENCH_ZSTD -I$(ZSTDLIBDIR)
 LZ4FLAGS = -DBENCH_LZ4 -I$(LZ4LIBDIR)
@@ -44,6 +48,27 @@ framebench-lz4: framebench.c liblz4.a
 framebench-zstd: ZSTDFLAGS+=$(FLAGS)
 framebench-zstd: framebench.c libzstd.a
 	$(CC) $(ZSTDFLAGS) -o framebench-zstd framebench.c libzstd.a
+
+.PHONY: zstdcompare
+zstdcompare: framebench-zstd-dev framebench-zstd-exp
+
+framebench-zstd-exp framebench-zstd-dev: MOREFLAGS="-O3 -march=native -mtune=native -ggdb -DBENCH_TARGET_NANOSEC=250000000ull -DNDEBUG"
+# framebench-zstd-exp framebench-zstd-dev: MOREFLAGS="-Og -ggdb -DZSTD_DEBUG=6"
+framebench-zstd-exp framebench-zstd-dev: CC?="gcc"
+
+.PHONY: framebench-zstd-exp
+framebench-zstd-exp:
+	make clean
+	make clean-zstd ZSTDDIR=$(ZSTDDIR)
+	make framebench-zstd -j32 ZSTDDIR=$(ZSTDDIR) CC=$(CC) MOREFLAGS=$(MOREFLAGS)
+	mv framebench-zstd framebench-zstd-exp
+
+.PHONY: framebench-zstd-dev
+framebench-zstd-dev:
+	make clean
+	make clean-zstd ZSTDDIR=$(ZSTD2DIR)
+	make framebench-zstd -j32 ZSTDDIR=$(ZSTD2DIR) CC=$(CC) MOREFLAGS=$(MOREFLAGS)
+	mv framebench-zstd framebench-zstd-dev
 
 
 .PHONY: clean
