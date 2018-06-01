@@ -22,6 +22,9 @@ export COMPILERS="gcc clang-4.0"
 # export EXENAME="framebench-lz4"
 export EXENAME="framebench-zstd"
 
+export MIN_CLEVEL=3
+export MAX_CLEVEL=15
+
 export CORPUSES="$(ls $SILESIADIR)"
 export SIZES="$(python -c 'print(" ".join(str(3 * 2 ** ((i - 3) / 2) if i % 2 else 2 ** (i / 2)) for i in range(12, 41)))')"
 # export SIZES="$(python -c 'print(" ".join(str(3 * 2 ** ((i - 3) / 2) if i % 2 else 2 ** (i / 2)) for i in range(6, 59)))')"
@@ -65,7 +68,7 @@ for i in $(seq 1000); do
         for COMPILER in $(echo $COMPILERS); do
           for BRANCH in $(echo $BRANCHES); do
             echo $CORPUS $SIZE $COMPILER $BRANCH
-            $BINDIR/$EXENAME-$BRANCH-$COMPILER $BRANCH-$COMPILER $DICT $TMPDIR/$CORPUS-in-$SIZE |& \
+            $BINDIR/$EXENAME-$BRANCH-$COMPILER -l $BRANCH-$COMPILER -D $DICT -i $TMPDIR/$CORPUS-in-$SIZE -b $MIN_CLEVEL -e $MAX_CLEVEL |& \
               tee -a $LOGSDIR/data-$CORPUS-$BRANCH-$COMPILER &
           done
         done
