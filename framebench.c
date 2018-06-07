@@ -73,6 +73,7 @@ typedef struct {
   char *dict_fn;
   size_t target_nanosec;
   size_t initial_reps;
+  size_t starting_iter;
 } args_t;
 
 typedef struct {
@@ -406,10 +407,10 @@ uint64_t bench(
 
   while (total_repetitions == 0 || time_taken < args->target_nanosec) {
     if (total_repetitions) {
-      repetitions = total_repetitions; // double previous
+        repetitions = total_repetitions; // double previous
     }
 
-    for (i = BENCH_STARTING_ITER; i < BENCH_STARTING_ITER + repetitions; i++) {
+    for (i = args->starting_iter; i < args->starting_iter + repetitions; i++) {
       params->iter = i;
       if (params->num_ibuf == 1) {
         params->isample = params->ibuf;
@@ -492,45 +493,74 @@ int parse_args(args_t *a, int c, char *v[]) {
   a->prog_name = v[0];
   a->target_nanosec = BENCH_TARGET_NANOSEC;
   a->initial_reps = BENCH_INITIAL_REPETITIONS;
+  a->starting_iter = BENCH_STARTING_ITER;
 
   for (i = 1; i < c; i++) {
-    if (v[i][0] == '-') {
-      CHECK_R(v[i][2] != '\0', "cannot stack flags");
-      switch(v[i][1]) {
-      case 'h':
-        a->print_help = 1;
-        break;
-      case 'i':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->in_fn = v[i+1];
-        break;
-      case 'D':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->dict_fn = v[i+1];
-        break;
-      case 'b':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->min_clevel = atoi(v[i+1]);
-        break;
-      case 'e':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->max_clevel = atoi(v[i+1]);
-        break;
-      case 'l':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->run_name = v[i+1];
-        break;
-      case 't':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->target_nanosec = atoll(v[i+1]);
-        break;
-      case 'n':
-        CHECK_R(i + 1 >= c, "missing argument");
-        a->initial_reps = atoll(v[i+1]);
-        break;
-      default:
-        CHECK_R(1, "unrecognized flag");
+    CHECK_R(v[i][0] != '-', "invalid argument");
+    CHECK_R(v[i][2] != '\0', "cannot stack flags");
+    switch(v[i][1]) {
+    case 'h':
+      a->print_help = 1;
+      break;
+    case 'i':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->in_fn = v[i];
+      break;
+    case 'D':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->dict_fn = v[i];
+      break;
+    case 'b':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->min_clevel = atoi(v[i]);
+      break;
+    case 'e':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->max_clevel = atoi(v[i]);
+      break;
+    case 'l':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->run_name = v[i];
+      break;
+    case 't': {
+      char *end;
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->target_nanosec = strtoll(v[i], &end, 0);
+      CHECK_R(end == v[i], "invalid argument");
+      if (!strncmp(end, "", 1)) {
+        // seconds by default
+        a->target_nanosec *= 1000ull * 1000 * 1000;
+      } else if (!strncmp(end, "m", 2)) {
+        a->target_nanosec *= 60ull * 1000 * 1000 * 1000;
+      } else if (!strncmp(end, "s", 2)) {
+        a->target_nanosec *= 1000ull * 1000 * 1000;
+      } else if (!strncmp(end, "ms", 3)) {
+        a->target_nanosec *= 1000ull * 1000;
+      } else if (!strncmp(end, "us", 3)) {
+        a->target_nanosec *= 1000ull;
+      } else if (!strncmp(end, "ns", 3)) {
+      } else {
+        CHECK_R(1, "invalid argument");
       }
+    } break;
+    case 'n':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->initial_reps = atoll(v[i]);
+      break;
+    case 's':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->starting_iter = atoll(v[i]);
+      break;
+    default:
+      CHECK_R(1, "unrecognized flag");
     }
   }
 
@@ -547,8 +577,9 @@ void print_help(const args_t *a) {
   fprintf(stderr, "\t-b\tBeginning compression level (inclusive)\n");
   fprintf(stderr, "\t-e\tEnd compression level (inclusive)\n");
   fprintf(stderr, "\t-l\tLabel for run\n");
-  fprintf(stderr, "\t-t\tTarget time to take benchmarking a param set (in nanosecs) (default %llu)\n", BENCH_TARGET_NANOSEC);
+  fprintf(stderr, "\t-t\tTarget time to take benchmarking a param set (accepted suffixes: m, s (default), ms, us, ns) (default %lluns)\n", BENCH_TARGET_NANOSEC);
   fprintf(stderr, "\t-n\tInitial number of iterations for each call (default %llu)\n", BENCH_INITIAL_REPETITIONS);
+  fprintf(stderr, "\t-s\tStarting iteration number (default %llu)\n", BENCH_STARTING_ITER);
 }
 
 
@@ -807,7 +838,6 @@ int main(int argc, char *argv[]) {
     params.clevel = clevel;
     bench("ZSTD_compressCCtx"            , zstd_compress_cctx   , check_zstd, &params, &args);
   }
-
 
   if (args.dict_fn) {
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
