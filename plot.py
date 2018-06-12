@@ -23,9 +23,10 @@ import subprocess
 # BRANCH_STRS = "46108a0 6c57dc6 f622cd9 69aea6b 3bc57db cfdf31b b095bff"
 # BRANCH_STRS = "c3b5889 4a2b6a7 8450542 37f220a 9938b17"
 # BRANCH_STRS = "da8a12a beca9c7 08c5be5"
-BRANCH_STRS = "a7c75740 43606f9c 5b292b56 d2eb4b9a 9e436879 6b535158"
-# BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
-BRANCHES = list(BRANCH_STRS.split(" "))
+# BRANCH_STRS = "a7c75740 43606f9c 5b292b56 d2eb4b9a 9e436879 6b535158"
+BRANCH_STRS = "66f56f3 bdb6736"
+BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
+# BRANCHES = list(BRANCH_STRS.split(" "))
 
 BRANCH_PAIRS = [
   # ("e56b501", "1ac0b6c"),
@@ -84,7 +85,7 @@ RUN_RE = re.compile(
     r'(?P<function>[A-Za-z0-9_]+) *' +
     r'@ lvl *(?P<clevel>[\-0-9]+): *' +
     r'(?P<bytes_in>[0-9]+) *B *-> *' +
-    r'(?P<bytes_out>[0-9]+) *B, *' +
+    r'(?P<bytes_out>[0-9.]+) *B, *' +
     r'(?P<iters>[0-9]+) *iters, *' +
     r'(?P<total_time>[0-9]+) *ns, *' +
     r'(?P<iter_time>[0-9]+) *ns/iter, *' +
@@ -96,7 +97,7 @@ Y_SCALE = 4
 Y_INC = 2
 Y_ZERO_LOG = 4
 
-Y_MIN_LOG = 4
+Y_MIN_LOG = 2
 Y_MAX_LOG = 9
 
 Y_MIN = Y_INC ** Y_MIN_LOG
@@ -107,7 +108,7 @@ X_ZERO_LOG = 6
 
 # pos
 X_MIN_LOG = 6
-X_MAX_LOG = 20
+X_MAX_LOG = 28
 
 X_MIN = X_INC ** X_MIN_LOG
 X_MAX = X_INC ** X_MAX_LOG
@@ -124,17 +125,72 @@ VAL_REDUCER = lambda x: sorted(x)[9 * len(x) // 10] # 90th percentile
 # def yp2v(p):
 #   return (p - Y_ZERO) * Y_INC
 
-def yv2p(v):
+class Axis(object):
+  def __init__(self, log=False):
+    self._log = log
+    self._min_val = None
+    self._max_val = None
+
+  def fit(self, vals):
+    if vals:
+      min_val = min(vals)
+      max_val = max(vals)
+      if self._min_val is None:
+        self._min_val = min_val
+      else:
+        self._min_val = min(self._min_val, min_val)
+      if self._max_val is None:
+        self._max_val = max_val
+      else:
+        self._max_val = min(self._max_val, max_val)
+
+  def min_v(self):
+    return self._min_val
+
+  def min_p(self):
+    return v2p(self._min_val)
+
+  def max_v(self):
+    return self._max_val
+
+  def max_p(self):
+    return v2p(self._max_val)
+
+  def v2p(self, v):
+    """val to pos"""
+
+  def p2v(self, p):
+    """pos to val"""
+
+
+class Plot(object):
+  def __init__(self):
+    pass
+
+def log_yv2p(v):
   return (math.log(v, Y_INC) - Y_ZERO_LOG) * Y_SCALE
 
-def yp2v(p):
+def log_yp2v(p):
   return (Y_INC ** (p / Y_SCALE + Y_ZERO_LOG))
 
-def xv2p(v):
+def log_xv2p(v):
   return math.log(v, X_INC) - X_ZERO_LOG
 
-def xp2v(p):
+def log_xp2v(p):
   return (X_INC ** (p + X_ZERO_LOG))
+
+
+def lin_yv2p(v):
+  return (v / Y_LIN_INC + Y_LIN_ZERO)
+
+def lin_yp2v(p):
+  return (p - Y_LIN_ZERO) * Y_LIN_INC
+
+def lin_xv2p(v):
+  return (v / X_LIN_INC + X_LIN_ZERO)
+
+def lin_xp2v(p):
+  return (p - X_LIN_ZERO) * X_LIN_INC
 
 POWERS_OF_1024 = ["", "K", "M", "G", "T", "P"]
 
@@ -301,17 +357,17 @@ def main():
     "x-ray"
   )
   compilers = (
-    # "clang",
+    "clang",
     "clang-7.0",
-    # "gcc",
-    # "gcc-6.4",
+    "gcc",
+    "gcc-6.4",
     "gcc-7.2",
     # "gcc",
     # "clang-4.0",
   )
   # clevels = list(range(-100,100))
-  # clevels = list(range(-5,5))
-  clevels = [3, 4]
+  clevels = list(range(4,13))
+  # clevels = [5]
 
   branches = BRANCHES
   start_branch = branches[0]
@@ -542,14 +598,15 @@ def main():
       run_renders(pdflatex_cmds, convert_cmds)
       montage(png_files, montage_prefix)
 
-def format_float(n, lp=4, tp=3):
-  s = "%*.*f" % (lp + tp + 1, tp, n)
+def format_float(n, lp=2, tp=3):
+  s = "%*.*f" % (lp + tp + 2, tp, n)
   if n == 0:
     return s
   color = "\033[32m" if n > 0 else "\033[31m"
   for i, c in enumerate(s):
     if c not in " -0.":
       return s[:i] + color + s[i:] + "\033[0m"
+  return s
 
 
 class Series(object):
@@ -695,7 +752,21 @@ class Source(object):
     )
 
 
-def gen_plot(series, title, min_x, max_x, min_y, max_y):
+def gen_plot(series, title, min_x, max_x, min_y, max_y, log_x=True, log_y=True):
+  if log_x:
+    xp2v = log_xp2v
+    xv2p = log_xv2p
+  else:
+    xp2v = lin_xp2v
+    xv2p = lin_xv2p
+
+  if log_y:
+    yp2v = log_yp2v
+    yv2p = log_yv2p
+  else:
+    yp2v = lin_yp2v
+    yv2p = lin_yv2p
+
   min_x = xp2v(math.floor(min(xv2p(min_x), xv2p(X_MIN))))
   max_x = xp2v(math.ceil (max(xv2p(max_x), xv2p(X_MAX))))
   min_y = yp2v(math.floor(min(yv2p(min_y), yv2p(Y_MIN))))

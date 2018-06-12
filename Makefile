@@ -52,22 +52,22 @@ framebench-zstd: framebench.c libzstd.a
 .PHONY: zstdcompare
 zstdcompare: framebench-zstd-dev framebench-zstd-exp
 
-framebench-zstd-exp framebench-zstd-dev: MOREFLAGS="-O3 -march=native -mtune=native -ggdb -DBENCH_TARGET_NANOSEC=250000000ull -DNDEBUG"
-# framebench-zstd-exp framebench-zstd-dev: MOREFLAGS="-Og -ggdb -DZSTD_DEBUG=6"
-framebench-zstd-exp framebench-zstd-dev: CC?="gcc"
+framebench-zstd-exp framebench-zstd-dev: MOREFLAGS?=-O3 -march=native -mtune=native -ggdb -DBENCH_TARGET_NANOSEC=250000000ull -DNDEBUG
+# framebench-zstd-exp framebench-zstd-dev: MOREFLAGS=-Og -ggdb -DZSTD_DEBUG=6
+framebench-zstd-exp framebench-zstd-dev: CC?=gcc
 
 .PHONY: framebench-zstd-exp
 framebench-zstd-exp:
 	make clean
 	make clean-zstd ZSTDDIR=$(ZSTDDIR)
-	make framebench-zstd -j32 ZSTDDIR=$(ZSTDDIR) CC=$(CC) MOREFLAGS=$(MOREFLAGS)
+	make framebench-zstd -j32 ZSTDDIR=$(ZSTDDIR) CC="$(CC)" MOREFLAGS="$(MOREFLAGS)"
 	mv framebench-zstd framebench-zstd-exp
 
 .PHONY: framebench-zstd-dev
 framebench-zstd-dev:
 	make clean
 	make clean-zstd ZSTDDIR=$(ZSTD2DIR)
-	make framebench-zstd -j32 ZSTDDIR=$(ZSTD2DIR) CC=$(CC) MOREFLAGS=$(MOREFLAGS)
+	make framebench-zstd -j32 ZSTDDIR=$(ZSTD2DIR) CC="$(CC)" MOREFLAGS="$(MOREFLAGS)"
 	mv framebench-zstd framebench-zstd-dev
 
 
