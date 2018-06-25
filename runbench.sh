@@ -3,7 +3,7 @@
 # export BRANCHES="cc5c9fe 8553c3b 4d50a9f 5a6c2c8 95a1596 97fed66 b095bff"
 export BRANCHES="3bc57db 1f86f20 dbf373a b095bff"
 
-export PROGDIR="/home/felix/prog"
+export PROGDIR="/home/felixh/prog"
 
 export BENCHDIR="$PROGDIR/compressor-benchmark"
 export LZ4DIR="$PROGDIR/lz4"

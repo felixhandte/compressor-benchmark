@@ -1,15 +1,17 @@
 
-LZ4DIR ?= /home/felix/prog/lz4
+PROGDIR ?= /home/felixh/prog
+
+LZ4DIR ?= $(PROGDIR)/lz4
 LZ4LIBDIR ?= $(LZ4DIR)/lib
 LZ4HDRDIR ?= $(LZ4DIR)/lib
 
-LZ42DIR ?= /home/felix/prog/lz4-2
+LZ42DIR ?= $(PROGDIR)/lz4-2
 
-ZSTDDIR ?= /home/felix/prog/zstd
+ZSTDDIR ?= $(PROGDIR)/zstd
 ZSTDLIBDIR ?= $(ZSTDDIR)/lib
 ZSTDHDRDIR ?= $(ZSTDDIR)/lib
 
-ZSTD2DIR ?= /home/felix/prog/zstd-2
+ZSTD2DIR ?= $(PROGDIR)/zstd-2
 
 ZSTDFLAGS = -DBENCH_ZSTD -I$(ZSTDLIBDIR)
 LZ4FLAGS = -DBENCH_LZ4 -I$(LZ4LIBDIR)

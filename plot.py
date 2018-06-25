@@ -24,7 +24,8 @@ import subprocess
 # BRANCH_STRS = "c3b5889 4a2b6a7 8450542 37f220a 9938b17"
 # BRANCH_STRS = "da8a12a beca9c7 08c5be5"
 # BRANCH_STRS = "a7c75740 43606f9c 5b292b56 d2eb4b9a 9e436879 6b535158"
-BRANCH_STRS = "66f56f3 bdb6736"
+# BRANCH_STRS = "0c222c15 c986dbf"
+BRANCH_STRS = "d70c4a5 27dc078a"
 BRANCHES = list(reversed(BRANCH_STRS.split(" ")))
 # BRANCHES = list(BRANCH_STRS.split(" "))
 
@@ -69,7 +70,7 @@ BRANCHES = tuple(BRANCHES)
 
 # TEST_DIR = "/home/felixh/dev/home/felixh/local/lz4/tests"
 TEST_DIR = "/home/felixh/prog/lz4/tests"
-BENCH_DIR = "/home/felix/prog/compressor-benchmark"
+BENCH_DIR = "/home/felixh/prog/compressor-benchmark"
 # DATA_DIR = os.path.join(BENCH_DIR, "bench/data")
 DATA_DIR = os.path.join(BENCH_DIR, "bench/dev-data")
 GEN_DIR = os.path.join(BENCH_DIR, "bench/gen")
@@ -366,7 +367,7 @@ def main():
     # "clang-4.0",
   )
   # clevels = list(range(-100,100))
-  clevels = list(range(4,13))
+  clevels = list(range(14,22))
   # clevels = [5]
 
   branches = BRANCHES

@@ -3,21 +3,32 @@
 import re
 import subprocess
 
-min_level = 4
-max_level = 12
-time = 500
+min_level = 1
+max_level = 22
+time = 250
 time_unit = "ms"
 min_reps = 4
 starting_iter = 0
-corpus = "enwik9"
-size = 2 ** 20
+corpus = "samba"
+size = 2 ** 12
+
+use_numa = False
+use_nice = True
+use_rr = True
+sequential = False
 
 dict_fn = "bench/dicts/%s.zstd-dict" % (corpus,)
 in_fn = "bench/tmp/%s-in-%d" % (corpus, size)
 
-pre_args = [
-  "sudo", "nice", "-n", "-1"
-]
+pre_args = []
+
+if use_rr or use_nice:
+  pre_args += ["sudo"]
+
+if use_rr:
+  pre_args += ["chrt", "--rr", "99"]
+elif use_nice:
+  pre_args += ["nice", "-n", "-10"]
 
 args = [
   "-D", dict_fn,
@@ -51,14 +62,15 @@ def format_float(n, lp=2, tp=3):
   return s
 
 def main():
-  dev_args = pre_args + ["./framebench-zstd-dev", "-l", "dev"] + args
-  exp_args = pre_args + ["./framebench-zstd-exp", "-l", "exp"] + args
+  dev_args = pre_args + (["numactl", "-C", "1", "-m", "1"] if use_numa else []) + ["./framebench-zstd-dev", "-l", "dev"] + args
+  exp_args = pre_args + (["numactl", "-C", "0", "-m", "0"] if use_numa else []) + ["./framebench-zstd-exp", "-l", "exp"] + args
 
   print(" ".join(dev_args))
   print(" ".join(exp_args))
 
   dev_p = subprocess.Popen(dev_args, stderr=subprocess.PIPE)
-  dev_p.wait()
+  if sequential:
+    dev_p.wait()
   exp_p = subprocess.Popen(exp_args, stderr=subprocess.PIPE)
 
   prev_func = None
