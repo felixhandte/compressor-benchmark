@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <dirent.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -71,10 +73,16 @@ typedef struct {
   int bench_lz4;
   char *in_fn;
   char *dict_fn;
+  size_t max_input_size;
   size_t target_nanosec;
   size_t initial_reps;
   size_t starting_iter;
 } args_t;
+
+typedef struct {
+  char *buf;
+  size_t size;
+} input_t;
 
 typedef struct {
   const char *run_name;
@@ -100,10 +108,13 @@ typedef struct {
   size_t dictsize;
   char *obuf;
   size_t osize;
-  const char* ibuf;
   const char* isample;
   size_t isize;
-  size_t num_ibuf;
+
+  const input_t *inputs;
+  size_t num_inputs;
+  size_t max_input_size;
+
   char *checkbuf;
   size_t checksize;
   int clevel;
@@ -401,6 +412,7 @@ uint64_t bench(
   size_t i, osize = 0, o = 0;
   size_t time_taken = 0;
   uint64_t total_repetitions = 0;
+  uint64_t total_input_size = 0;
   uint64_t repetitions = args->initial_reps;
 
   if (clock_gettime(CLOCK_MONOTONIC_RAW, &start)) return 0;
@@ -412,15 +424,20 @@ uint64_t bench(
 
     for (i = args->starting_iter; i < args->starting_iter + repetitions; i++) {
       params->iter = i;
-      if (params->num_ibuf == 1) {
-        params->isample = params->ibuf;
-      } else {
-#ifdef BENCH_RANDOMIZE_INPUT
-        params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
-#else
-        params->isample = params->ibuf + ((i * 2654435761U) % params->num_ibuf) * params->isize;
-#endif
+      params->isample = params->inputs[i % params->num_inputs].buf;
+      params->isize = params->inputs[i % params->num_inputs].size;
+      if (args->max_input_size && params->isize > args->max_input_size) {
+        params->isize = args->max_input_size;
       }
+      total_input_size += params->isize;
+//       if (params->num_inputs == 1) {
+//       } else {
+// #ifdef BENCH_RANDOMIZE_INPUT
+//         params->isample = params->ibuf + ((i * 2654435761U) % ((params->num_ibuf - 1) * params->isize));
+// #else
+//         params->isample = params->ibuf + ((i * 2654435761U) % params->num_ibuf) * params->isize;
+// #endif
+//       }
       o = fun(params);
       if (!o) {
         fprintf(
@@ -459,7 +476,8 @@ uint64_t bench(
       stderr,
       "%-19s: %-30s @ lvl %3d: %8ld B -> %11.2lf B, %7ld iters, %10ld ns, %10ld ns/iter, %7.2lf MB/s\n",
       params->run_name, bench_name, params->clevel,
-      params->isize, ((double)osize) / total_repetitions,
+      total_input_size / total_repetitions,
+      ((double)osize) / total_repetitions,
       total_repetitions, time_taken, time_taken / total_repetitions,
       ((double) 1000 * params->isize * total_repetitions) / time_taken
   );
@@ -484,6 +502,98 @@ ZSTD_CDict **create_zstd_cdicts(int min_level, int max_level, const char *dict_b
   return cdicts;
 }
 #endif
+
+
+int read_input(const char *in_fn, input_t *i) {
+  size_t in_size;
+  size_t num_in_buf;
+  // size_t cur_in_buf;
+  size_t bytes_read;
+  char *in_buf;
+  FILE *in_file;
+  struct stat st;
+
+  CHECK_R(stat(in_fn, &st), "stat(%s) failed", in_fn);
+  in_size = st.st_size;
+  // num_in_buf = 256 * 1024 * 1024 / in_size;
+  // if (num_in_buf == 0) {
+    num_in_buf = 1;
+  // }
+
+  in_buf = (char *)malloc(in_size * num_in_buf);
+  CHECK_R(!in_buf, "malloc failed");
+  in_file = fopen(in_fn, "r");
+  bytes_read = fread(in_buf, 1, in_size, in_file);
+  CHECK_R(bytes_read != in_size, "unexpected input size");
+
+  // for(cur_in_buf = 1; cur_in_buf < num_in_buf; cur_in_buf++) {
+  //   memcpy(in_buf + cur_in_buf * in_size, in_buf, in_size);
+  // }
+
+  i->buf = in_buf;
+  i->size = in_size;
+
+  return 0;
+}
+
+int read_inputs(args_t *a, bench_params_t *p) {
+  struct stat st;
+  size_t max_input_size = 0;
+  size_t a_ins = 1;
+  size_t n_ins = 0;
+  input_t *ins = malloc(a_ins * sizeof(input_t));
+  CHECK_R(!ins, "malloc failed");
+  CHECK_R(stat(a->in_fn, &st), "stat(%s) failed", a->in_fn);
+  if ((st.st_mode & S_IFMT) == S_IFDIR) {
+    // it's a directory, accumulate all files inside as inputs
+    DIR *d = opendir(a->in_fn);
+    struct dirent *de;
+    char *in_fn = malloc(strlen(a->in_fn) + 1 /* slash */ + NAME_MAX + 1 /* nul */);
+    size_t fn_path_end = strlen(a->in_fn);
+    CHECK_R(!d, "opendir() failed: %m");
+    CHECK_R(!in_fn, "malloc failed");
+
+    strcpy(in_fn, a->in_fn);
+    if (in_fn[fn_path_end - 1] != '/') {
+      in_fn[fn_path_end++] = '/';
+    }
+
+    errno = 0;
+    while ((de = readdir(d))) {
+      if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
+        continue;
+      }
+
+      if (n_ins == a_ins) {
+        a_ins *= 2;
+        ins = realloc(ins, a_ins * sizeof(input_t));
+        CHECK_R(!ins, "realloc failed");
+      }
+
+      strcpy(in_fn + fn_path_end, de->d_name);
+
+      CHECK_R(read_input(in_fn, ins + n_ins), "read_input(%s) failed", in_fn);
+      if (ins[n_ins].size > max_input_size) {
+        max_input_size = ins[n_ins].size;
+      }
+      n_ins++;
+    }
+    CHECK_R(errno, "readdir() failed: %m");
+
+    CHECK_R(closedir(d), "closedir() failed: %m");
+  } else {
+    // it's a file, use as input
+    CHECK_R(read_input(a->in_fn, ins), "read_input() failed");
+    max_input_size = ins[0].size;
+    n_ins++;
+  }
+  
+  p->inputs = ins;
+  p->num_inputs = n_ins;
+  p->max_input_size = max_input_size;
+
+  return 0;
+}
 
 int parse_args(args_t *a, int c, char *v[]) {
   int i;
@@ -559,6 +669,11 @@ int parse_args(args_t *a, int c, char *v[]) {
       CHECK_R(i >= c, "missing argument");
       a->starting_iter = atoll(v[i]);
       break;
+    case 'S':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->max_input_size = atoll(v[i]);
+      break;
     default:
       CHECK_R(1, "unrecognized flag");
     }
@@ -590,12 +705,6 @@ int main(int argc, char *argv[]) {
   size_t dict_size;
   char *dict_buf;
   FILE *dict_file;
-
-  size_t in_size;
-  size_t num_in_buf;
-  size_t cur_in_buf;
-  char *in_buf;
-  FILE *in_file;
 
   size_t out_size = 0;
   char *out_buf;
@@ -646,27 +755,16 @@ int main(int argc, char *argv[]) {
     dict_buf = "";
     dict_size = 0;
   }
+  params.dictbuf = dict_buf;
+  params.dictsize = dict_size;
 
-  CHECK(stat(args.in_fn, &st), "stat(%s) failed", args.in_fn);
-  in_size = st.st_size;
-  num_in_buf = 256 * 1024 * 1024 / in_size;
-  if (num_in_buf == 0) {
-    num_in_buf = 1;
-  }
+  CHECK(read_inputs(&args, &params), "read_inputs() failed");
 
-  in_buf = (char *)malloc(in_size * num_in_buf);
-  CHECK(!in_buf, "malloc failed");
-  in_file = fopen(args.in_fn, "r");
-  bytes_read = fread(in_buf, 1, in_size, in_file);
-  CHECK(bytes_read != in_size, "unexpected input size");
-
-  for(cur_in_buf = 1; cur_in_buf < num_in_buf; cur_in_buf++) {
-    memcpy(in_buf + cur_in_buf * in_size, in_buf, in_size);
-  }
-
-  check_size = in_size;
+  check_size = params.max_input_size;
   check_buf = (char *)malloc(check_size);
   CHECK(!check_buf, "malloc failed");
+  params.checkbuf = check_buf;
+  params.checksize = check_size;
 
 #ifdef BENCH_LZ4
   memset(&prefs, 0, sizeof(prefs));
@@ -722,16 +820,16 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef BENCH_LZ4
-  if ((size_t)LZ4_compressBound(in_size) > out_size) {
-    out_size = LZ4_compressBound(in_size);
+  if ((size_t)LZ4_compressBound(params.max_input_size) > out_size) {
+    out_size = LZ4_compressBound(params.max_input_size);
   }
-  if (LZ4F_compressFrameBound(in_size, &prefs) > out_size) {
-    out_size = LZ4F_compressFrameBound(in_size, &prefs);
+  if (LZ4F_compressFrameBound(params.max_input_size, &prefs) > out_size) {
+    out_size = LZ4F_compressFrameBound(params.max_input_size, &prefs);
   }
 #endif
 #ifdef BENCH_ZSTD
-  if (ZSTD_compressBound(in_size) > out_size) {
-    out_size = ZSTD_compressBound(in_size);
+  if (ZSTD_compressBound(params.max_input_size) > out_size) {
+    out_size = ZSTD_compressBound(params.max_input_size);
   }
 #endif
   out_buf = (char *)malloc(out_size);
@@ -755,15 +853,8 @@ int main(int argc, char *argv[]) {
   params.zcdicts = zcdicts;
   params.zddict = zddict;
 #endif
-  params.dictbuf = dict_buf;
-  params.dictsize = dict_size;
   params.obuf = out_buf;
   params.osize = out_size;
-  params.ibuf = in_buf;
-  params.isize = in_size;
-  params.num_ibuf = num_in_buf;
-  params.checkbuf = check_buf;
-  params.checksize = check_size;
   params.clevel = 1;
 
 #ifdef BENCH_LZ4
