@@ -21,7 +21,13 @@
 #endif
 
 #ifdef BENCH_ZSTD
+#define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
+#endif
+
+#ifdef BENCH_BROTLI
+#include "brotli/decode.h"
+#include "brotli/encode.h"
 #endif
 
 #define CHECK_R(err, ...) do { if (err) { \
@@ -103,6 +109,10 @@ typedef struct {
   ZSTD_DCtx *zdctx;
   ZSTD_CDict **zcdicts;
   ZSTD_DDict *zddict;
+#endif
+#ifdef BENCH_BROTLI
+  BrotliEncoderState *brcctx;
+  BrotliDecoderState *brdctx;
 #endif
   const char *dictbuf;
   size_t dictsize;
@@ -360,6 +370,31 @@ size_t zstd_compress_cdict(bench_params_t *p) {
 }
 #endif
 
+#ifdef BENCH_BROTLI
+size_t brotli_compress(bench_params_t *p) {
+  char *obuf = p->obuf;
+  size_t osize = p->osize;
+  const char* isample = p->isample;
+  size_t isize = p->isize;
+  int clevel = p->clevel;
+
+  size_t oused = osize;
+  BROTLI_BOOL ret;
+
+  ret = BrotliEncoderCompress(
+    clevel, BROTLI_DEFAULT_WINDOW, BROTLI_DEFAULT_MODE,
+    isize, isample,
+    &oused, obuf);
+
+  if (ret == BROTLI_FALSE) {
+    fprintf(stderr, "Sad!\n");
+    return 0;
+  }
+
+  return oused;
+}
+#endif
+
 #ifdef BENCH_LZ4
 size_t check_lz4(bench_params_t *p, size_t csize) {
   (void)csize;
@@ -398,6 +433,16 @@ size_t check_zstd(bench_params_t *p, size_t csize) {
   memset(p->checkbuf, 0xFF, p->checksize);
   return ZSTD_decompress_usingDDict(p->zdctx, p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
       && !memcmp(p->isample, p->checkbuf, p->isize);
+}
+#endif
+
+#ifdef BENCH_BROTLI
+size_t check_brotli(bench_params_t *p, size_t csize) {
+  // (void)csize;
+  // memset(p->checkbuf, 0xFF, p->checksize);
+  // return ZSTD_decompress_usingDDict(p->zdctx, p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
+  //     && !memcmp(p->isample, p->checkbuf, p->isize);
+  return 1;
 }
 #endif
 
@@ -730,6 +775,12 @@ int main(int argc, char *argv[]) {
   ZSTD_CDict **zcdicts;
   ZSTD_DDict *zddict;
 #endif
+
+#ifdef BENCH_BROTLI
+  BrotliEncoderState *brcctx;
+  BrotliDecoderState *brdctx;
+#endif
+
   int clevel;
 
   bench_params_t params;
@@ -819,6 +870,14 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
+#ifdef BENCH_BROTLI
+  brcctx = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+  CHECK(!brcctx, "BrotliEncoderCreateInstance failed");
+
+  brdctx = BrotliDecoderCreateInstance(NULL, NULL, NULL);
+  CHECK(!brdctx, "BrotliDecoderCreateInstance failed");
+#endif
+
 #ifdef BENCH_LZ4
   if ((size_t)LZ4_compressBound(params.max_input_size) > out_size) {
     out_size = LZ4_compressBound(params.max_input_size);
@@ -830,6 +889,11 @@ int main(int argc, char *argv[]) {
 #ifdef BENCH_ZSTD
   if (ZSTD_compressBound(params.max_input_size) > out_size) {
     out_size = ZSTD_compressBound(params.max_input_size);
+  }
+#endif
+#ifdef BENCH_BROTLI
+  if (BrotliEncoderMaxCompressedSize(params.max_input_size) > out_size) {
+    out_size = BrotliEncoderMaxCompressedSize(params.max_input_size);
   }
 #endif
   out_buf = (char *)malloc(out_size);
@@ -935,6 +999,13 @@ int main(int argc, char *argv[]) {
       params.clevel = clevel;
       bench("ZSTD_compress_usingCDict"     , zstd_compress_cdict  , check_zstd, &params, &args);
     }
+  }
+#endif
+
+#ifdef BENCH_BROTLI
+  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    params.clevel = clevel;
+    bench("BrotliEncoderCompress"          , brotli_compress        , check_brotli, &params, &args);
   }
 #endif
 
