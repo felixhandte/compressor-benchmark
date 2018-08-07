@@ -68,6 +68,11 @@ BRANCHES = tuple(BRANCHES)
 
 # print(" ".join(reversed(BRANCHES)))
 
+BR_LABELS = {
+  "d70c4a5": "v1.3.5",
+  "27dc078a": "v1.3.4",
+}
+
 # TEST_DIR = "/home/felixh/dev/home/felixh/local/lz4/tests"
 TEST_DIR = "/home/felixh/prog/lz4/tests"
 BENCH_DIR = "/home/felixh/prog/compressor-benchmark"
@@ -94,12 +99,12 @@ RUN_RE = re.compile(
 
 MIN_INPUT_SIZE = 1
 
-Y_SCALE = 4
+Y_SCALE = 2
 Y_INC = 2
-Y_ZERO_LOG = 4
+Y_ZERO_LOG = 0
 
-Y_MIN_LOG = 2
-Y_MAX_LOG = 9
+Y_MIN_LOG = 0
+Y_MAX_LOG = 8
 
 Y_MIN = Y_INC ** Y_MIN_LOG
 Y_MAX = Y_INC ** Y_MAX_LOG
@@ -109,7 +114,7 @@ X_ZERO_LOG = 6
 
 # pos
 X_MIN_LOG = 6
-X_MAX_LOG = 28
+X_MAX_LOG = 23
 
 X_MIN = X_INC ** X_MIN_LOG
 X_MAX = X_INC ** X_MAX_LOG
@@ -195,8 +200,10 @@ def lin_xp2v(p):
 
 POWERS_OF_1024 = ["", "K", "M", "G", "T", "P"]
 
-X_AXIS_LABELS = dict((2 ** (10 * p10 + p), str(2 ** p) + suffix) for p in range(10) for p10, suffix in enumerate(POWERS_OF_1024))
-X_AXIS_LABELS.update(dict((2 ** p, "$\\frac{1}{" + str(2 ** -p) + "}$") for p in range(-12, 0)))
+X_AXIS_LABEL_FREQUENCY = 2
+
+X_AXIS_LABELS = dict((2 ** (10 * p10 + p), str(2 ** p) + suffix) for p in range(0, 10, X_AXIS_LABEL_FREQUENCY) for p10, suffix in enumerate(POWERS_OF_1024))
+X_AXIS_LABELS.update(dict((2 ** p, "$\\frac{1}{" + str(2 ** -p) + "}$") for p in range(-12, 0, X_AXIS_LABEL_FREQUENCY)))
 
 Y_AXIS_LABELS = X_AXIS_LABELS
 
@@ -343,32 +350,32 @@ def print_stats(branches, branch_pairs, start_branch, end_branch, compilers, cor
 def main():
   sources = []
   corpuses = (
-    "dickens",
-    # "enwik9",
-    "mozilla",
-    "mr",
-    "nci",
-    "ooffice",
+    # "dickens",
+    # # "enwik9",
+    # "mozilla",
+    # "mr",
+    # "nci",
+    # "ooffice",
     "osdb",
-    "reymont",
-    "samba",
-    "sao",
-    "webster",
-    "xml",
-    "x-ray"
+    # "reymont",
+    # "samba",
+    # "sao",
+    # "webster",
+    # "xml",
+    # "x-ray"
   )
   compilers = (
-    "clang",
+    # "clang",
     "clang-7.0",
-    "gcc",
-    "gcc-6.4",
-    "gcc-7.2",
+    # "gcc",
+    # "gcc-6.4",
+    # "gcc-7.2",
     # "gcc",
     # "clang-4.0",
   )
   # clevels = list(range(-100,100))
-  clevels = list(range(14,22))
-  # clevels = [5]
+  # clevels = list(range(1,22))
+  clevels = [1, 3, 9, 18]
 
   branches = BRANCHES
   start_branch = branches[0]
@@ -461,47 +468,49 @@ def main():
 
   # for corpus in ["all"]:
   # for corpus in ["all"] + list(corpuses):
-  # for corpus in list(corpuses):
-  #   for cc in compilers:
-  #     for brnum, (br1, br2) in enumerate(branch_pairs):
-  #       prefixes_and_plots = []
-  #       for f in fs:
-  #         # branches_to_use = [start_branch, end_branch, br1, br2]
-  #         branches_to_use = [br1, br2]
-  #         corpuses_to_use = corpuses if corpus == "all" else (corpus,)
-  #         clevels_to_use = clevels
-  #         sources_to_use = [
-  #           sources_by_b_cc_c[(b, cc, c)]
-  #           for c in corpuses_to_use
-  #           for b in branches_to_use
-  #         ]
-  #         # series_names_to_use = [
-  #         #   "%s:%s:%s" % (b, c, cc)
-  #         #   for c in corpuses_to_use
-  #         #   for b in branches_to_use
-  #         # ]
-  #         # series = [s.series(f, f, cl) for s in sources for name in series_names_to_use if s.name() == name]
+  for corpus in list(corpuses):
+    for cc in compilers:
+      for brnum, (br1, br2) in enumerate(branch_pairs):
+        prefixes_and_plots = []
+        for f in fs:
+          # branches_to_use = [start_branch, end_branch, br1, br2]
+          branches_to_use = [br1, br2]
+          corpuses_to_use = corpuses if corpus == "all" else (corpus,)
+          clevels_to_use = clevels
+          sources_to_use = [
+            sources_by_b_cc_c[(b, cc, c)]
+            for c in corpuses_to_use
+            for b in branches_to_use
+          ]
+          # series_names_to_use = [
+          #   "%s:%s:%s" % (b, c, cc)
+          #   for c in corpuses_to_use
+          #   for b in branches_to_use
+          # ]
+          # series = [s.series(f, f, cl) for s in sources for name in series_names_to_use if s.name() == name]
 
-  #         series = [src.series(f, f, cl) for src in sources_to_use for cl in clevels_to_use]
+          series = [src.series(f, f, cl) for src in sources_to_use for cl in clevels_to_use]
 
-  #         series_colors = {}
-  #         series_colors.update({"%s:%s:%s:%s:%s" % (start_branch, c, cc, f, cl): "red!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
-  #         series_colors.update({"%s:%s:%s:%s:%s" % (end_branch, c, cc, f, cl): "green!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
-  #         series_colors.update({"%s:%s:%s:%s:%s" % (br1, c, cc, f, cl): "red!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
-  #         series_colors.update({"%s:%s:%s:%s:%s" % (br2, c, cc, f, cl): "green!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
-  #         for s in series:
-  #           s._color = series_colors.get(s.name(), s._color)
+          series_colors = {}
+          series_colors.update({"%s:%s:%s:%s:%s" % (start_branch, c, cc, f, cl): "red!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
+          series_colors.update({"%s:%s:%s:%s:%s" % (end_branch, c, cc, f, cl): "green!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
+          series_colors.update({"%s:%s:%s:%s:%s" % (br1, c, cc, f, cl): "red!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
+          series_colors.update({"%s:%s:%s:%s:%s" % (br2, c, cc, f, cl): "green!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
+          for s in series:
+            s._color = series_colors.get(s.name(), s._color)
 
-  #         plot = gen_plot(
-  #           series,
-  #           "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, br1, br2),
-  #           min_x, max_x, min_y, max_y,
-  #         )
+          plot = gen_plot(
+            series,
+            # "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, BR_LABELS.get(br1, br1), BR_LABELS.get(br2, br2)),
+            "%s" % (f.replace("_", r"\_")),
+            # None,
+            min_x, max_x, min_y, max_y,
+          )
 
-  #         prefix = "%s-%s-%02d-%s-%s-%s-all-cls" % (corpus, cc, brnum, br1, br2, f)
-  #         prefixes_and_plots.append((prefix, plot))
-  #       montage_prefix = "%s-%s-%02d-%s-%s-all-cls" % (corpus, cc, brnum, br1, br2)
-  #       montage_prefix_and_plots.append((montage_prefix, prefixes_and_plots))
+          prefix = "%s-%s-%02d-%s-%s-%s-all-cls" % (corpus, cc, brnum, br1, br2, f)
+          prefixes_and_plots.append((prefix, plot))
+        montage_prefix = "%s-%s-%02d-%s-%s-all-cls" % (corpus, cc, brnum, br1, br2)
+        montage_prefix_and_plots.append((montage_prefix, prefixes_and_plots))
 
 
   # for corpus in list(corpuses):
@@ -528,15 +537,17 @@ def main():
 
   #       series_colors = {}
 
-  #       colors = ["red!50!gray", "blue!50!gray", "green!50!gray"]
+  #       # colors = ["red!50!gray", "blue!50!gray", "green!50!gray"]
+  #       colors = ["red!50!gray", "green!50!gray"]
   #       for color, br in zip(colors, branches):
   #         series_colors.update({"%s:%s:%s:%s:%s" % (br, c, cc, f, cl): color for c in corpuses_to_use for cl in clevels_to_use})
+
   #       for s in series:
   #         s._color = series_colors.get(s.name(), s._color)
 
   #       plot = gen_plot(
   #         series,
-  #         "%s (%s): %s" % (f.replace("_", r"\_"), cc, corpus),
+  #         "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, BR_LABELS.get(branches[0], branches[0]), BR_LABELS.get(branches[-1], branches[-1])),
   #         min_x, max_x, min_y, max_y,
   #       )
 
@@ -546,49 +557,49 @@ def main():
   #     montage_prefix_and_plots.append((montage_prefix, prefixes_and_plots))
 
 
-  for corpus in ["all"]:
-  # for corpus in ["all"] + list(corpuses):
-  # for corpus in list(corpuses):
-    for cc in compilers:
-      for cl in clevels:
-        for brnum, (br1, br2) in enumerate(branch_pairs):
-          prefixes_and_plots = []
-          for f in fs:
-            # branches_to_use = [start_branch, end_branch, br1, br2]
-            branches_to_use = [br1, br2]
-            corpuses_to_use = corpuses if corpus == "all" else (corpus,)
-            sources_to_use = [
-              sources_by_b_cc_c[(b, cc, c)]
-              for c in corpuses_to_use
-              for b in branches_to_use
-            ]
-            # series_names_to_use = [
-            #   "%s:%s:%s" % (b, c, cc)
-            #   for c in corpuses_to_use
-            #   for b in branches_to_use
-            # ]
-            # series = [s.series(f, f, cl) for s in sources for name in series_names_to_use if s.name() == name]
+  # for corpus in ["all"]:
+  # # for corpus in ["all"] + list(corpuses):
+  # # for corpus in list(corpuses):
+  #   for cc in compilers:
+  #     for cl in clevels:
+  #       for brnum, (br1, br2) in enumerate(branch_pairs):
+  #         prefixes_and_plots = []
+  #         for f in fs:
+  #           # branches_to_use = [start_branch, end_branch, br1, br2]
+  #           branches_to_use = [br1, br2]
+  #           corpuses_to_use = corpuses if corpus == "all" else (corpus,)
+  #           sources_to_use = [
+  #             sources_by_b_cc_c[(b, cc, c)]
+  #             for c in corpuses_to_use
+  #             for b in branches_to_use
+  #           ]
+  #           # series_names_to_use = [
+  #           #   "%s:%s:%s" % (b, c, cc)
+  #           #   for c in corpuses_to_use
+  #           #   for b in branches_to_use
+  #           # ]
+  #           # series = [s.series(f, f, cl) for s in sources for name in series_names_to_use if s.name() == name]
 
-            series = [src.series(f, f, cl) for src in sources_to_use]
+  #           series = [src.series(f, f, cl) for src in sources_to_use]
 
-            series_colors = {}
-            series_colors.update({"%s:%s:%s:%s:%s" % (start_branch, c, cc, f, cl): "red!25!gray, opacity=.1" for c in corpuses_to_use})
-            series_colors.update({"%s:%s:%s:%s:%s" % (end_branch, c, cc, f, cl): "green!25!gray, opacity=.1" for c in corpuses_to_use})
-            series_colors.update({"%s:%s:%s:%s:%s" % (br1, c, cc, f, cl): "red!50!gray" for c in corpuses_to_use})
-            series_colors.update({"%s:%s:%s:%s:%s" % (br2, c, cc, f, cl): "green!50!gray" for c in corpuses_to_use})
-            for s in series:
-              s._color = series_colors.get(s.name(), s._color)
+  #           series_colors = {}
+  #           series_colors.update({"%s:%s:%s:%s:%s" % (start_branch, c, cc, f, cl): "red!25!gray, opacity=.1" for c in corpuses_to_use})
+  #           series_colors.update({"%s:%s:%s:%s:%s" % (end_branch, c, cc, f, cl): "green!25!gray, opacity=.1" for c in corpuses_to_use})
+  #           series_colors.update({"%s:%s:%s:%s:%s" % (br1, c, cc, f, cl): "red!50!gray" for c in corpuses_to_use})
+  #           series_colors.update({"%s:%s:%s:%s:%s" % (br2, c, cc, f, cl): "green!50!gray" for c in corpuses_to_use})
+  #           for s in series:
+  #             s._color = series_colors.get(s.name(), s._color)
 
-            plot = gen_plot(
-              series,
-              "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, br1, br2),
-              min_x, max_x, min_y, max_y,
-            )
+  #           plot = gen_plot(
+  #             series,
+  #             "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, br1, br2),
+  #             min_x, max_x, min_y, max_y,
+  #           )
 
-            prefix = "%s-%s-%02d-%s-%s-%s-%02d" % (corpus, cc, brnum, br1, br2, f, cl)
-            prefixes_and_plots.append((prefix, plot))
-          montage_prefix = "%s-%s-%02d-%s-%s-%02d" % (corpus, cc, brnum, br1, br2, cl)
-          montage_prefix_and_plots.append((montage_prefix, prefixes_and_plots))
+  #           prefix = "%s-%s-%02d-%s-%s-%s-%02d" % (corpus, cc, brnum, br1, br2, f, cl)
+  #           prefixes_and_plots.append((prefix, plot))
+  #         montage_prefix = "%s-%s-%02d-%s-%s-%02d" % (corpus, cc, brnum, br1, br2, cl)
+  #         montage_prefix_and_plots.append((montage_prefix, prefixes_and_plots))
 
   for montage_prefix, prefixes_and_plots in montage_prefix_and_plots:
       png_files = []
@@ -773,8 +784,8 @@ def gen_plot(series, title, min_x, max_x, min_y, max_y, log_x=True, log_y=True):
   min_y = yp2v(math.floor(min(yv2p(min_y), yv2p(Y_MIN))))
   max_y = yp2v(math.ceil (max(yv2p(max_y), yv2p(Y_MAX))))
 
-  x_lines = [X_INC ** i for i in range(int(math.log(min_x, X_INC)), int(math.log(max_x, X_INC)) + 1)]
-  y_lines = [Y_INC ** (i / Y_SCALE) for i in range(int(math.log(min_y, Y_INC) * Y_SCALE), int(math.log(max_y, Y_INC) * Y_SCALE) + 1)]
+  x_lines = [X_INC ** i for i in range(int(math.log(min_x, X_INC)), int(math.log(max_x, X_INC)) + 1, 2)]
+  y_lines = [Y_INC ** (i / Y_SCALE) for i in range(int(math.log(min_y, Y_INC) * Y_SCALE), int(math.log(max_y, Y_INC) * Y_SCALE) + 1, 2)]
 
   ls = []
 
@@ -805,7 +816,8 @@ def gen_plot(series, title, min_x, max_x, min_y, max_y, log_x=True, log_y=True):
   ls.append("\\node at (%f, %f) {%s};" % ((xv2p(min_x) + xv2p(max_x)) / 2., yv2p(min_y) - 1.5, "\\large Uncompressed Size"))
   ls.append("\\node [rotate=90] at (%f, %f) {%s};" % (xv2p(min_x) - 1.5, (yv2p(min_y) + yv2p(max_y)) / 2., "\\large MB/s"))
 
-  ls.append("\\node [anchor=south] at (%f, %f) {%s};" % ((xv2p(min_x) + xv2p(max_x)) / 2., yv2p(max_y) + .5, "\\LARGE " + title))
+  if title is not None:
+    ls.append("\\node [anchor=south] at (%f, %f) {%s};" % ((xv2p(min_x) + xv2p(max_x)) / 2., yv2p(max_y) + .5, "\\LARGE " + title))
 
 
   for s in series:
@@ -862,7 +874,7 @@ def set_up_render(prefix, plot, png_files, pdflatex_cmds, convert_cmds):
   convert_cmd = [
     "convert",
     "-verbose",
-    "-density", "200",
+    "-density", "100",
     pdf_file,
     "-quality", "100",
     "-sharpen", "0x1.0",
