@@ -9,6 +9,7 @@ time = 250
 time_unit = "ms"
 min_reps = 4
 starting_iter = 0
+num_ctxs = 32
 corpus = "osdb"
 size = 2 ** 12
 
@@ -38,6 +39,7 @@ args = [
   "-t", str(time) + time_unit,
   "-n", str(min_reps),
   "-s", str(starting_iter),
+  "-c", str(num_ctxs),
 ]
 
 RUN_RE = re.compile(

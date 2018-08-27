@@ -68,6 +68,10 @@
 #endif
 #endif
 
+#ifndef BENCH_DEFAULT_NUM_CONTEXTS
+#define BENCH_DEFAULT_NUM_CONTEXTS 1ull
+#endif
+
 
 typedef struct {
   int print_help;
@@ -83,6 +87,7 @@ typedef struct {
   size_t target_nanosec;
   size_t initial_reps;
   size_t starting_iter;
+  size_t num_contexts;
 } args_t;
 
 typedef struct {
@@ -93,20 +98,24 @@ typedef struct {
 typedef struct {
   const char *run_name;
   size_t iter;
+  size_t ncctx;
+  size_t ndctx;
+  size_t curcctx;
+  size_t curdctx;
 #ifdef BENCH_LZ4
-  LZ4_stream_t *ctx;
-  LZ4_streamHC_t *hcctx;
-  LZ4_stream_t *dictctx;
-  LZ4_streamHC_t *dicthcctx;
-  LZ4F_cctx *cctx;
-  LZ4F_dctx *dctx;
+  LZ4_stream_t **ctx;
+  LZ4_streamHC_t **hcctx;
+  LZ4_stream_t **dictctx;
+  LZ4_streamHC_t **dicthcctx;
+  LZ4F_cctx **cctx;
+  LZ4F_dctx **dctx;
   const LZ4F_CDict* cdict;
   LZ4F_preferences_t* prefs;
   const LZ4F_compressOptions_t* options;
 #endif
 #ifdef BENCH_ZSTD
-  ZSTD_CCtx *zcctx;
-  ZSTD_DCtx *zdctx;
+  ZSTD_CCtx **zcctx;
+  ZSTD_DCtx **zdctx;
   ZSTD_CDict **zcdicts;
   ZSTD_DDict *zddict;
 #endif
@@ -133,7 +142,7 @@ typedef struct {
 #ifdef BENCH_LZ4
 size_t compress_frame(bench_params_t *p) {
 #ifdef BENCH_LZ4_COMPRESSFRAME_USINGCDICT_TAKES_CCTX
-  LZ4F_cctx *cctx = p->cctx;
+  LZ4F_cctx *cctx = p->cctx[p->curcctx];
 #endif
   char *obuf = p->obuf;
   size_t osize = p->osize;
@@ -162,7 +171,7 @@ size_t compress_frame(bench_params_t *p) {
 }
 
 size_t compress_begin(bench_params_t *p) {
-  LZ4F_cctx *cctx = p->cctx;
+  LZ4F_cctx *cctx = p->cctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -210,7 +219,7 @@ size_t compress_default(bench_params_t *p) {
 }
 
 size_t compress_extState(bench_params_t *p) {
-  LZ4_stream_t *ctx = p->ctx;
+  LZ4_stream_t *ctx = p->ctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -250,7 +259,7 @@ size_t compress_hc(bench_params_t *p) {
 }
 
 size_t compress_hc_extState(bench_params_t *p) {
-  LZ4_streamHC_t *hcctx = p->hcctx;
+  LZ4_streamHC_t *hcctx = p->hcctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -274,8 +283,8 @@ size_t compress_hc_extState(bench_params_t *p) {
 }
 
 size_t compress_dict(bench_params_t *p) {
-  LZ4_stream_t *ctx = p->ctx;
-  const LZ4_stream_t *dictctx = p->dictctx;
+  LZ4_stream_t *ctx = p->ctx[p->curcctx];
+  const LZ4_stream_t *dictctx = p->dictctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -299,8 +308,8 @@ size_t compress_dict(bench_params_t *p) {
 }
 
 size_t compress_hc_dict(bench_params_t *p) {
-  LZ4_streamHC_t *hcctx = p->hcctx;
-  const LZ4_streamHC_t *dicthcctx = p->dicthcctx;
+  LZ4_streamHC_t *hcctx = p->hcctx[p->curcctx];
+  const LZ4_streamHC_t *dicthcctx = p->dicthcctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -339,7 +348,7 @@ size_t zstd_compress_default(bench_params_t *p) {
 }
 
 size_t zstd_compress_cctx(bench_params_t *p) {
-  ZSTD_CCtx *ctx = p->zcctx;
+  ZSTD_CCtx *ctx = p->zcctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -354,7 +363,7 @@ size_t zstd_compress_cctx(bench_params_t *p) {
 }
 
 size_t zstd_compress_cdict(bench_params_t *p) {
-  ZSTD_CCtx *ctx = p->zcctx;
+  ZSTD_CCtx *ctx = p->zcctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   const char* isample = p->isample;
@@ -371,7 +380,7 @@ size_t zstd_compress_cdict(bench_params_t *p) {
 
 size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
   int clevel = p->clevel;
-  ZSTD_CCtx *zcctx = p->zcctx;
+  ZSTD_CCtx *zcctx = p->zcctx[p->curcctx];
   ZSTD_CDict *zcdict = p->zcdicts[clevel];
   ZSTD_CCtx_refCDict(zcctx, zcdict);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_compressionLevel, clevel);
@@ -382,7 +391,7 @@ size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
 }
 
 size_t zstd_compress_cdict_split_params(bench_params_t *p) {
-  ZSTD_CCtx *ctx = p->zcctx;
+  ZSTD_CCtx *ctx = p->zcctx[p->curcctx];
   char *obuf = p->obuf;
   size_t osize = p->osize;
   size_t opos = 0;
@@ -441,11 +450,12 @@ size_t check_lz4f(bench_params_t *p, size_t csize) {
   size_t cleft = csize;
   size_t dleft = dsize;
   size_t ret;
+  LZ4F_dctx *dctx = p->dctx[p->curdctx];
   memset(p->checkbuf, 0xFF, p->checksize);
-  LZ4F_resetDecompressionContext(p->dctx);
+  LZ4F_resetDecompressionContext(dctx);
   do {
     ret = LZ4F_decompress_usingDict(
-        p->dctx, p->checkbuf + dp, &dleft, p->obuf + cp, &cleft,
+        dctx, p->checkbuf + dp, &dleft, p->obuf + cp, &cleft,
         p->dictbuf, p->dictsize, NULL);
     cp += cleft;
     dp += dleft;
@@ -461,7 +471,7 @@ size_t check_lz4f(bench_params_t *p, size_t csize) {
 size_t check_zstd(bench_params_t *p, size_t csize) {
   (void)csize;
   memset(p->checkbuf, 0xFF, p->checksize);
-  return ZSTD_decompress_usingDDict(p->zdctx, p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
+  return ZSTD_decompress_usingDDict(p->zdctx[p->curdctx], p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
       && !memcmp(p->isample, p->checkbuf, p->isize);
 }
 #endif
@@ -492,8 +502,12 @@ uint64_t bench(
   uint64_t repetitions = args->initial_reps;
 
   if (setup) {
-    if (!setup(params)) {
-      return 0;
+    for (i = 0; i < params->ncctx || i < params->ndctx; i++) {
+      params->curcctx = i % params->ncctx;
+      params->curdctx = i % params->ndctx;
+      if (!setup(params)) {
+        return 0;
+      }
     }
   }
 
@@ -506,6 +520,8 @@ uint64_t bench(
 
     for (i = args->starting_iter; i < args->starting_iter + repetitions; i++) {
       params->iter = i;
+      params->curcctx = i % params->ncctx;
+      params->curdctx = i % params->ndctx;
       params->isample = params->inputs[i % params->num_inputs].buf;
       params->isize = params->inputs[i % params->num_inputs].size;
       if (args->max_input_size && params->isize > args->max_input_size) {
@@ -686,6 +702,7 @@ int parse_args(args_t *a, int c, char *v[]) {
   a->target_nanosec = BENCH_TARGET_NANOSEC;
   a->initial_reps = BENCH_INITIAL_REPETITIONS;
   a->starting_iter = BENCH_STARTING_ITER;
+  a->num_contexts = BENCH_DEFAULT_NUM_CONTEXTS;
 
   for (i = 1; i < c; i++) {
     CHECK_R(v[i][0] != '-', "invalid argument");
@@ -756,6 +773,11 @@ int parse_args(args_t *a, int c, char *v[]) {
       CHECK_R(i >= c, "missing argument");
       a->max_input_size = atoll(v[i]);
       break;
+    case 'c':
+      i++;
+      CHECK_R(i >= c, "missing argument");
+      a->num_contexts = atoll(v[i]);
+      break;
     default:
       CHECK_R(1, "unrecognized flag");
     }
@@ -777,10 +799,13 @@ void print_help(const args_t *a) {
   fprintf(stderr, "\t-t\tTarget time to take benchmarking a param set (accepted suffixes: m, s (default), ms, us, ns) (default %lluns)\n", BENCH_TARGET_NANOSEC);
   fprintf(stderr, "\t-n\tInitial number of iterations for each call (default %llu)\n", BENCH_INITIAL_REPETITIONS);
   fprintf(stderr, "\t-s\tStarting iteration number (default %llu)\n", BENCH_STARTING_ITER);
+  fprintf(stderr, "\t-c\tNumber of (de)compression contexts to rotate through using (default %llu)\n", BENCH_DEFAULT_NUM_CONTEXTS);
 }
 
 
 int main(int argc, char *argv[]) {
+  size_t i;
+
   struct stat st;
   size_t bytes_read;
 
@@ -854,6 +879,9 @@ int main(int argc, char *argv[]) {
   params.checkbuf = check_buf;
   params.checksize = check_size;
 
+  params.ncctx = args.num_contexts;
+  params.ndctx = args.num_contexts;
+
 #ifdef BENCH_LZ4
   memset(&prefs, 0, sizeof(prefs));
   prefs.autoFlush = 1;
@@ -864,36 +892,66 @@ int main(int argc, char *argv[]) {
   memset(&options, 0, sizeof(options));
   options.stableSrc = 1;
 
-  LZ4F_CHECK_R(LZ4F_createCompressionContext(&cctx, LZ4F_VERSION), 1);
-  CHECK(!cctx, "LZ4F_createCompressionContext failed");
+  params.ctx = malloc(args.num_contexts * sizeof(LZ4_stream_t *));
+  params.hcctx = malloc(args.num_contexts * sizeof(LZ4_streamHC_t *));
+  params.dictctx = malloc(args.num_contexts * sizeof(LZ4_stream_t *));
+  params.dicthcctx = malloc(args.num_contexts * sizeof(LZ4_streamHC_t *));
+  params.cctx = malloc(args.num_contexts * sizeof(LZ4F_cctx *));
+  params.dctx = malloc(args.num_contexts * sizeof(LZ4F_dctx *));
+  CHECK(!params.ctx, "malloc failed");
+  CHECK(!params.hcctx, "malloc failed");
+  CHECK(!params.dictctx, "malloc failed");
+  CHECK(!params.dicthcctx, "malloc failed");
+  CHECK(!params.cctx, "malloc failed");
+  CHECK(!params.dctx, "malloc failed");
 
-  LZ4F_CHECK_R(LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION), 1);
-  CHECK(!dctx, "LZ4F_createDecompressionContext failed");
+  for (i = 0; i < args.num_contexts; i++) {
+    LZ4F_CHECK_R(LZ4F_createCompressionContext(&cctx, LZ4F_VERSION), 1);
+    CHECK(!cctx, "LZ4F_createCompressionContext failed");
+    params.cctx[i] = cctx;
 
-  ctx = LZ4_createStream();
-  CHECK(!ctx, "LZ4_createStream failed");
+    LZ4F_CHECK_R(LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION), 1);
+    CHECK(!dctx, "LZ4F_createDecompressionContext failed");
+    params.dctx[i] = dctx;
 
-  hcctx = LZ4_createStreamHC();
-  CHECK(!hcctx, "LZ4_createStreamHC failed");
+    ctx = LZ4_createStream();
+    CHECK(!ctx, "LZ4_createStream failed");
+    params.ctx[i] = ctx;
 
-  dictctx = LZ4_createStream();
-  CHECK(!ctx, "LZ4_createStream failed");
-  LZ4_loadDict(dictctx, dict_buf, dict_size);
+    hcctx = LZ4_createStreamHC();
+    CHECK(!hcctx, "LZ4_createStreamHC failed");
+    params.hcctx[i] = hcctx;
 
-  dicthcctx = LZ4_createStreamHC();
-  CHECK(!hcctx, "LZ4_createStreamHC failed");
-  LZ4_loadDictHC(dicthcctx, dict_buf, dict_size);
+    dictctx = LZ4_createStream();
+    CHECK(!ctx, "LZ4_createStream failed");
+    LZ4_loadDict(dictctx, dict_buf, dict_size);
+    params.dictctx[i] = dictctx;
+
+    dicthcctx = LZ4_createStreamHC();
+    CHECK(!hcctx, "LZ4_createStreamHC failed");
+    LZ4_loadDictHC(dicthcctx, dict_buf, dict_size);
+    params.dicthcctx[i] = dicthcctx;
+  }
 
   cdict = LZ4F_createCDict(dict_buf, dict_size);
   CHECK(!cdict, "LZ4F_createCDict failed");
 #endif
 
 #ifdef BENCH_ZSTD
-  zcctx = ZSTD_createCCtx();
-  CHECK(!zcctx, "ZSTD_createCCtx failed");
+  params.zcctx = malloc(args.num_contexts * sizeof(ZSTD_CCtx *));
+  params.zdctx = malloc(args.num_contexts * sizeof(ZSTD_DCtx *));
+  CHECK(!params.zcctx, "malloc failed");
+  CHECK(!params.zdctx, "malloc failed");
 
-  zdctx = ZSTD_createDCtx();
-  CHECK(!zdctx, "ZSTD_createDCtx failed");
+  for (i = 0; i < args.num_contexts; i++) {
+    zcctx = ZSTD_createCCtx();
+    CHECK(!zcctx, "ZSTD_createCCtx failed");
+    params.zcctx[i] = zcctx;
+
+    zdctx = ZSTD_createDCtx();
+    CHECK(!zdctx, "ZSTD_createDCtx failed");
+    params.zdctx[i] = zdctx;
+  }
 
   if (args.dict_fn) {
     zcdicts = create_zstd_cdicts(args.min_clevel, args.max_clevel, dict_buf, dict_size);
@@ -938,19 +996,11 @@ int main(int argc, char *argv[]) {
 
   params.run_name = args.run_name;
 #ifdef BENCH_LZ4
-  params.ctx = ctx;
-  params.hcctx = hcctx;
-  params.dictctx = dictctx;
-  params.dicthcctx = dicthcctx;
-  params.cctx = cctx;
-  params.dctx = dctx;
   params.cdict = cdict;
   params.prefs = &prefs;
   params.options = &options;
 #endif
 #ifdef BENCH_ZSTD
-  params.zcctx = zcctx;
-  params.zdctx = zdctx;
   params.zcdicts = zcdicts;
   params.zddict = zddict;
 #endif
