@@ -4,12 +4,12 @@ import re
 import subprocess
 
 min_level = 1
-max_level = 22
+max_level = 15
 time = 250
 time_unit = "ms"
 min_reps = 4
 starting_iter = 0
-corpus = "samba"
+corpus = "osdb"
 size = 2 ** 12
 
 use_numa = False
@@ -98,7 +98,7 @@ def main():
         print()
       prev_func = dm.group("function")
 
-    print("%s vs %s: %-24s @ lvl %3s: %8s B -> %11s vs %11s B (%s%%), %7s vs %7s iters, %7s vs %7s MB/s (%s%%)" % (
+    print("%s vs %s: %-30s @ lvl %3s: %8s B -> %11s vs %11s B (%s%%), %7s vs %7s iters, %7s vs %7s MB/s (%s%%)" % (
       dm.group("run_name"),
       em.group("run_name"),
       dm.group("function"),

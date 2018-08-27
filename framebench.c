@@ -375,7 +375,7 @@ size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
   ZSTD_CDict *zcdict = p->zcdicts[clevel];
   ZSTD_CCtx_refCDict(zcctx, zcdict);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_compressionLevel, clevel);
-  ZSTD_CCtx_setParameter(zcctx, ZSTD_p_hashLog, 10);
+  ZSTD_CCtx_setParameter(zcctx, ZSTD_p_hashLog, 12);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_chainLog, 10);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_forceAttachDict, 1);
   return 1;
@@ -1049,7 +1049,7 @@ int main(int argc, char *argv[]) {
 #ifdef BENCH_BROTLI
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
     params.clevel = clevel;
-    bench("BrotliEncoderCompress"          , brotli_compress        , check_brotli, &params, &args);
+    bench("BrotliEncoderCompress"          , NULL, brotli_compress        , check_brotli, &params, &args);
   }
 #endif
 

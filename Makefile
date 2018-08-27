@@ -75,7 +75,7 @@ framebench-brotli: framebench.c libbrotli.a
 zstdcompare: framebench-zstd-dev framebench-zstd-exp
 
 framebench-zstd-exp framebench-zstd-dev: MOREFLAGS?=-O3 -march=native -mtune=native -ggdb -DBENCH_TARGET_NANOSEC=250000000ull -DNDEBUG
-# framebench-zstd-exp framebench-zstd-dev: MOREFLAGS=-Og -ggdb -DZSTD_DEBUG=6
+# framebench-zstd-exp framebench-zstd-dev: MOREFLAGS=-Og -ggdb -DDEBUGLEVEL=4
 framebench-zstd-exp framebench-zstd-dev: CC?=gcc
 
 .PHONY: framebench-zstd-exp
