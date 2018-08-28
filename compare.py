@@ -4,12 +4,12 @@ import re
 import subprocess
 
 min_level = 1
-max_level = 15
+max_level = 22
 time = 250
 time_unit = "ms"
 min_reps = 4
 starting_iter = 0
-num_ctxs = 32
+num_ctxs = 8
 corpus = "osdb"
 size = 2 ** 12
 

@@ -385,7 +385,7 @@ size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
   ZSTD_CCtx_refCDict(zcctx, zcdict);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_compressionLevel, clevel);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_hashLog, 12);
-  ZSTD_CCtx_setParameter(zcctx, ZSTD_p_chainLog, 10);
+  ZSTD_CCtx_setParameter(zcctx, ZSTD_p_chainLog, 12);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_forceAttachDict, 1);
   return 1;
 }
