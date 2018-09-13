@@ -382,6 +382,8 @@ size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
   int clevel = p->clevel;
   ZSTD_CCtx *zcctx = p->zcctx[p->curcctx];
   ZSTD_CDict *zcdict = p->zcdicts[clevel];
+  ZSTD_CCtx_reset(zcctx);
+  ZSTD_CCtx_resetParameters(zcctx);
   ZSTD_CCtx_refCDict(zcctx, zcdict);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_compressionLevel, clevel);
   ZSTD_CCtx_setParameter(zcctx, ZSTD_p_hashLog, 12);
@@ -540,15 +542,15 @@ uint64_t bench(
       if (!o) {
         fprintf(
             stderr,
-            "%-19s: %-30s @ lvl %3d: %8ld B: FAILED!\n",
-            params->run_name, bench_name, params->clevel,
+            "%-19s: %-30s @ lvl %3d, %3zd ctxs: %8ld B: FAILED!\n",
+            params->run_name, bench_name, params->clevel, params->ncctx,
             params->isize);
         return 0;
       }
       // fprintf(
       //     stderr,
-      //     "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B: iter %8ld\n",
-      //     params->run_name, bench_name, params->clevel,
+      //     "%-19s: %-30s @ lvl %3d, %3zd ctxs: %8ld B -> %8ld B: iter %8ld\n",
+      //     params->run_name, bench_name, params->clevel, params->ncctx,
       //     params->isize, o, i);
       osize += o;
     }
@@ -563,8 +565,8 @@ uint64_t bench(
   if (!checkfun(params, o)) {
     fprintf(
         stderr,
-        "%-19s: %-30s @ lvl %3d: %8ld B -> %8ld B: CHECK FAILED!\n",
-        params->run_name, bench_name, params->clevel,
+        "%-19s: %-30s @ lvl %3d, %3zd ctxs: %8ld B -> %8ld B: CHECK FAILED!\n",
+        params->run_name, bench_name, params->clevel, params->ncctx,
         params->isize, o);
     raise(SIGABRT);
     return 0;
@@ -572,8 +574,8 @@ uint64_t bench(
 
   fprintf(
       stderr,
-      "%-19s: %-30s @ lvl %3d: %8ld B -> %11.2lf B, %7ld iters, %10ld ns, %10ld ns/iter, %7.2lf MB/s\n",
-      params->run_name, bench_name, params->clevel,
+      "%-19s: %-30s @ lvl %3d, %3zd ctxs: %8ld B -> %11.2lf B, %7ld iters, %10ld ns, %10ld ns/iter, %7.2lf MB/s\n",
+      params->run_name, bench_name, params->clevel, params->ncctx,
       total_input_size / total_repetitions,
       ((double)osize) / total_repetitions,
       total_repetitions, time_taken, time_taken / total_repetitions,
@@ -1076,23 +1078,23 @@ int main(int argc, char *argv[]) {
     bench("ZSTD_compress"                , NULL, zstd_compress_default, check_zstd, &params, &args);
   }
 
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
-  }
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
+  // }
 
   if (args.dict_fn) {
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
       params.clevel = clevel;
       bench("ZSTD_compress_usingCDict"      , NULL, zstd_compress_cdict  , check_zstd, &params, &args);
     }
-    for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-      params.clevel = clevel;
-      bench("ZSTD_compress_usingCDict_split",
-            zstd_setup_compress_cdict_split_params,
-            zstd_compress_cdict_split_params,
-            check_zstd, &params, &args);
-    }
+    // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    //   params.clevel = clevel;
+    //   bench("ZSTD_compress_usingCDict_split",
+    //         zstd_setup_compress_cdict_split_params,
+    //         zstd_compress_cdict_split_params,
+    //         check_zstd, &params, &args);
+    // }
   }
 #endif
 

@@ -7,11 +7,11 @@ min_level = 1
 max_level = 22
 time = 250
 time_unit = "ms"
-min_reps = 4
+min_reps = 16
 starting_iter = 0
-num_ctxs = 8
+num_ctxs = 1
 corpus = "osdb"
-size = 2 ** 12
+size = 2 ** 16
 
 use_numa = False
 use_nice = True
@@ -45,7 +45,8 @@ args = [
 RUN_RE = re.compile(
     r'^(?P<run_name>[A-Za-z0-9_\-.]+) *: *' +
     r'(?P<function>[A-Za-z0-9_]+) *' +
-    r'@ lvl *(?P<clevel>[\-0-9]+): *' +
+    r'@ lvl *(?P<clevel>[\-0-9]+), *' +
+    r'(?P<contexts>[\-0-9]+) *ctxs: *' +
     r'(?P<bytes_in>[0-9]+) *B *-> *' +
     r'(?P<bytes_out>[0-9.]+) *B, *' +
     r'(?P<iters>[0-9]+) *iters, *' +
@@ -93,6 +94,7 @@ def main():
 
     assert dm.group("function") == em.group("function")
     assert dm.group("clevel") == em.group("clevel")
+    assert dm.group("contexts") == em.group("contexts")
     assert dm.group("bytes_in") == em.group("bytes_in")
 
     if dm.group("function") != prev_func:
@@ -100,11 +102,12 @@ def main():
         print()
       prev_func = dm.group("function")
 
-    print("%s vs %s: %-30s @ lvl %3s: %8s B -> %11s vs %11s B (%s%%), %7s vs %7s iters, %7s vs %7s MB/s (%s%%)" % (
+    print("%s vs %s: %-30s @ lvl %3s, %3s ctxs: %8s B -> %11s vs %11s B (%s%%), %7s vs %7s iters, %7s vs %7s MB/s (%s%%)" % (
       dm.group("run_name"),
       em.group("run_name"),
       dm.group("function"),
       dm.group("clevel"),
+      dm.group("contexts"),
       dm.group("bytes_in"),
       dm.group("bytes_out"),
       em.group("bytes_out"),

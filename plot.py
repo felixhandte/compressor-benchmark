@@ -89,7 +89,8 @@ INPUT_SIZE_RE = re.compile(r'^input size: ([0-9]*)$')
 RUN_RE = re.compile(
     r'^(?P<run_name>[A-Za-z0-9_\-.]+) *: *' +
     r'(?P<function>[A-Za-z0-9_]+) *' +
-    r'@ lvl *(?P<clevel>[\-0-9]+): *' +
+    r'@ lvl *(?P<clevel>[\-0-9]+), *' +
+    r'(?P<contexts>[\-0-9]+) *ctxs: *' +
     r'(?P<bytes_in>[0-9]+) *B *-> *' +
     r'(?P<bytes_out>[0-9.]+) *B, *' +
     r'(?P<iters>[0-9]+) *iters, *' +
