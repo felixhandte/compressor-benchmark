@@ -378,6 +378,40 @@ size_t zstd_compress_cdict(bench_params_t *p) {
   return oused;
 }
 
+size_t zstd_compress_stream_cdict(bench_params_t *p) {
+  ZSTD_CCtx *ctx = p->zcctx[p->curcctx];
+  char *obuf = p->obuf;
+  size_t osize = p->osize;
+  const char* isample = p->isample;
+  size_t isize = p->isize;
+  int clevel = p->clevel;
+  ZSTD_CDict *cdict = p->zcdicts[clevel];
+
+  ZSTD_outBuffer obuffer = {obuf, osize, 0};
+  ZSTD_inBuffer ibuffer = {isample, isize, 0};
+
+  size_t ret;
+
+  ZSTD_CCtx_reset(ctx);
+  ZSTD_CCtx_resetParameters(ctx);
+  ZSTD_CCtx_refCDict(ctx, cdict);
+  ZSTD_CCtx_setParameter(ctx, ZSTD_p_compressionLevel, clevel);
+
+  ret = ZSTD_compress_generic(ctx, &obuffer, &ibuffer, ZSTD_e_flush);
+
+  if (ZSTD_isError(ret)) {
+    return 0;
+  }
+
+  ret = ZSTD_compress_generic(ctx, &obuffer, &ibuffer, ZSTD_e_end);
+
+  if (ret) {
+    return 0;
+  }
+
+  return obuffer.pos;
+}
+
 size_t zstd_setup_compress_cdict_split_params(bench_params_t *p) {
   int clevel = p->clevel;
   ZSTD_CCtx *zcctx = p->zcctx[p->curcctx];
@@ -579,7 +613,7 @@ uint64_t bench(
       total_input_size / total_repetitions,
       ((double)osize) / total_repetitions,
       total_repetitions, time_taken, time_taken / total_repetitions,
-      ((double) 1000 * params->isize * total_repetitions) / time_taken
+      ((double) 1000 * total_input_size) / time_taken
   );
 
   return time_taken;
@@ -613,7 +647,7 @@ int read_input(const char *in_fn, input_t *i) {
   FILE *in_file;
   struct stat st;
 
-  CHECK_R(stat(in_fn, &st), "stat(%s) failed", in_fn);
+  CHECK_R(stat(in_fn, &st), "stat(%s) failed: %m", in_fn);
   in_size = st.st_size;
   // num_in_buf = 256 * 1024 * 1024 / in_size;
   // if (num_in_buf == 0) {
@@ -632,6 +666,8 @@ int read_input(const char *in_fn, input_t *i) {
 
   i->buf = in_buf;
   i->size = in_size;
+
+  CHECK_R(fclose(in_file), "fclose(%s) failed: %m", in_fn);
 
   return 0;
 }
@@ -808,13 +844,6 @@ void print_help(const args_t *a) {
 int main(int argc, char *argv[]) {
   size_t i;
 
-  struct stat st;
-  size_t bytes_read;
-
-  size_t dict_size;
-  char *dict_buf;
-  FILE *dict_file;
-
   size_t out_size = 0;
   char *out_buf;
 
@@ -859,19 +888,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (args.dict_fn != NULL) {
-    CHECK(stat(args.dict_fn, &st), "stat(%s) failed", args.dict_fn);
-    dict_size = st.st_size;
-    dict_buf = (char *)malloc(dict_size);
-    CHECK(!dict_buf, "malloc failed");
-    dict_file = fopen(args.dict_fn, "r");
-    bytes_read = fread(dict_buf, 1, dict_size, dict_file);
-    CHECK(bytes_read != dict_size, "unexpected dict size");
+    input_t dict_input;
+    CHECK_R(read_input(args.dict_fn, &dict_input), "read_input(%s) failed", args.dict_fn);
+    params.dictbuf = dict_input.buf;
+    params.dictsize = dict_input.size;
   } else {
-    dict_buf = "";
-    dict_size = 0;
+    params.dictbuf = "";
+    params.dictsize = 0;
   }
-  params.dictbuf = dict_buf;
-  params.dictsize = dict_size;
 
   CHECK(read_inputs(&args, &params), "read_inputs() failed");
 
@@ -926,16 +950,16 @@ int main(int argc, char *argv[]) {
 
     dictctx = LZ4_createStream();
     CHECK(!ctx, "LZ4_createStream failed");
-    LZ4_loadDict(dictctx, dict_buf, dict_size);
+    LZ4_loadDict(dictctx, params.dictbuf, params.dictsize);
     params.dictctx[i] = dictctx;
 
     dicthcctx = LZ4_createStreamHC();
     CHECK(!hcctx, "LZ4_createStreamHC failed");
-    LZ4_loadDictHC(dicthcctx, dict_buf, dict_size);
+    LZ4_loadDictHC(dicthcctx, params.dictbuf, params.dictsize);
     params.dicthcctx[i] = dicthcctx;
   }
 
-  cdict = LZ4F_createCDict(dict_buf, dict_size);
+  cdict = LZ4F_createCDict(params.dictbuf, params.dictsize);
   CHECK(!cdict, "LZ4F_createCDict failed");
 #endif
 
@@ -956,10 +980,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (args.dict_fn) {
-    zcdicts = create_zstd_cdicts(args.min_clevel, args.max_clevel, dict_buf, dict_size);
+    zcdicts = create_zstd_cdicts(args.min_clevel, args.max_clevel, params.dictbuf, params.dictsize);
     CHECK(!zcdicts, "create_zstd_cdicts failed");
 
-    zddict = ZSTD_createDDict(dict_buf, dict_size);
+    zddict = ZSTD_createDDict(params.dictbuf, params.dictsize);
     CHECK(!zddict, "ZSTD_createDDict failed");
   } else {
     zcdicts = NULL;
@@ -1074,21 +1098,36 @@ int main(int argc, char *argv[]) {
 
 #ifdef BENCH_ZSTD
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel == 0) continue;
     params.clevel = clevel;
+    // for (i = 0; i < 100; i++)
     bench("ZSTD_compress"                , NULL, zstd_compress_default, check_zstd, &params, &args);
   }
 
-  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-  //   params.clevel = clevel;
-  //   bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
-  // }
+  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel == 0) continue;
+    params.clevel = clevel;
+    // for (i = 0; i < 100; i++)
+    bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
+  }
 
   if (args.dict_fn) {
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+      if (clevel == 0) continue;
       params.clevel = clevel;
+      // for (i = 0; i < 100; i++)
       bench("ZSTD_compress_usingCDict"      , NULL, zstd_compress_cdict  , check_zstd, &params, &args);
     }
+
+    for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+      if (clevel == 0) continue;
+      params.clevel = clevel;
+      // for (i = 0; i < 100; i++)
+      bench("ZSTD_compress_stream_CDict", NULL, zstd_compress_stream_cdict, check_zstd, &params, &args);
+    }
+
     // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    //   if (clevel == 0) continue;
     //   params.clevel = clevel;
     //   bench("ZSTD_compress_usingCDict_split",
     //         zstd_setup_compress_cdict_split_params,

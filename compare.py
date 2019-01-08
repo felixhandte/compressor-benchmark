@@ -5,30 +5,35 @@ import subprocess
 
 min_level = 1
 max_level = 22
-time = 250
+time = 50
 time_unit = "ms"
 min_reps = 16
 starting_iter = 0
 num_ctxs = 1
 corpus = "osdb"
-size = 2 ** 16
+size = 2 ** 10
 
 use_numa = False
 use_nice = True
 use_rr = True
+use_single_core = False
 sequential = False
+wait = False
 
 dict_fn = "bench/dicts/%s.zstd-dict" % (corpus,)
 in_fn = "bench/tmp/%s-in-%d" % (corpus, size)
 
+# dict_fn = "udb-4KB-data-blocks/dict7310441_8KB"
+# in_fn = "udb-4KB-data-blocks/7310441/data_block_000001.data"
+
 pre_args = []
 
-if use_rr or use_nice:
+if use_rr or use_nice or use_single_core:
   pre_args += ["sudo"]
 
 if use_rr:
   pre_args += ["chrt", "--rr", "99"]
-elif use_nice:
+if use_nice:
   pre_args += ["nice", "-n", "-10"]
 
 args = [
@@ -65,8 +70,18 @@ def format_float(n, lp=2, tp=3):
   return s
 
 def main():
-  dev_args = pre_args + (["numactl", "-C", "1", "-m", "1"] if use_numa else []) + ["./framebench-zstd-dev", "-l", "dev"] + args
-  exp_args = pre_args + (["numactl", "-C", "0", "-m", "0"] if use_numa else []) + ["./framebench-zstd-exp", "-l", "exp"] + args
+  dev_args = pre_args[:]
+  exp_args = pre_args[:]
+  if use_numa:
+    dev_args += ["numactl", "-C", "1", "-m", "1"]
+    exp_args += ["numactl", "-C", "0", "-m", "0"]
+  if use_single_core:
+    dev_args += ["taskset", "--cpu-list", "0"]
+    exp_args += ["taskset", "--cpu-list", "0"]
+  dev_args += ["./framebench-zstd-dev", "-l", "dev"]
+  exp_args += ["./framebench-zstd-exp", "-l", "exp"]
+  dev_args += args
+  exp_args += args
 
   print(" ".join(dev_args))
   print(" ".join(exp_args))
@@ -75,6 +90,9 @@ def main():
   if sequential:
     dev_p.wait()
   exp_p = subprocess.Popen(exp_args, stderr=subprocess.PIPE)
+  if wait:
+    dev_p.wait()
+    exp_p.wait()
 
   prev_func = None
 

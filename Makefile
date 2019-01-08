@@ -3,13 +3,13 @@ PROGDIR ?= /home/felixh/prog
 
 LZ4DIR ?= $(PROGDIR)/lz4
 LZ4LIBDIR ?= $(LZ4DIR)/lib
-LZ4HDRDIR ?= $(LZ4DIR)/lib
+LZ4INCLUDES ?= -I$(LZ4DIR)/lib
 
 LZ42DIR ?= $(PROGDIR)/lz4-2
 
 ZSTDDIR ?= $(PROGDIR)/zstd
 ZSTDLIBDIR ?= $(ZSTDDIR)/lib
-ZSTDHDRDIR ?= $(ZSTDDIR)/lib
+ZSTDINCLUDES ?= -I$(ZSTDDIR)/lib -I$(ZSTDDIR)/lib/dictBuilder
 
 ZSTD2DIR ?= $(PROGDIR)/zstd-2
 
@@ -17,8 +17,8 @@ BROTLIDIR ?= $(PROGDIR)/brotli
 BROTLILIBDIR ?= $(BROTLIDIR)
 BROTLIHDRDIR ?= $(BROTLIDIR)/c/include
 
-ZSTDFLAGS = -DBENCH_ZSTD -I$(ZSTDHDRDIR)
-LZ4FLAGS = -DBENCH_LZ4 -I$(LZ4HDRDIR)
+ZSTDFLAGS = -DBENCH_ZSTD $(ZSTDINCLUDES)
+LZ4FLAGS = -DBENCH_LZ4 $(LZ4INCLUDES)
 BROTLIFLAGS = -DBENCH_BROTLI -I$(BROTLIHDRDIR)
 BROTLILDFLAGS = -lm
 
@@ -40,9 +40,9 @@ $(LZ4LIBDIR)/liblz4.a:
 $(ZSTDLIBDIR)/libzstd.a:
 	$(MAKE) -C $(ZSTDLIBDIR) libzstd.a
 
-.PHONY: $(BROTLILIBDIR)/libbrotli.a
-$(BROTLILIBDIR)/libbrotli.a:
-	$(MAKE) -C $(BROTLILIBDIR) lib
+.PHONY: $(BROTLILIBDIR)/libbrotlicommon-static.a $(BROTLILIBDIR)/libbrotlidec-static.a $(BROTLILIBDIR)/libbrotlienc-static.a
+$(BROTLILIBDIR)/libbrotlicommon-static.a $(BROTLILIBDIR)/libbrotlidec-static.a $(BROTLILIBDIR)/libbrotlienc-static.a:
+	$(MAKE) -C $(BROTLILIBDIR)
 
 liblz4.a: $(LZ4LIBDIR)/liblz4.a
 	cp $(LZ4LIBDIR)/liblz4.a liblz4.a
@@ -50,11 +50,17 @@ liblz4.a: $(LZ4LIBDIR)/liblz4.a
 libzstd.a: $(ZSTDLIBDIR)/libzstd.a
 	cp $(ZSTDLIBDIR)/libzstd.a libzstd.a
 
-libbrotli.a: $(BROTLILIBDIR)/libbrotli.a
-	cp $(BROTLILIBDIR)/libbrotli.a libbrotli.a
+libbrotlicommon-static.a: $(BROTLILIBDIR)/libbrotlicommon-static.a
+	cp $(BROTLILIBDIR)/libbrotlicommon-static.a libbrotlicommon-static.a
+
+libbrotlidec-static.a: $(BROTLILIBDIR)/libbrotlidec-static.a
+	cp $(BROTLILIBDIR)/libbrotlidec-static.a libbrotlidec-static.a
+
+libbrotlienc-static.a: $(BROTLILIBDIR)/libbrotlienc-static.a
+	cp $(BROTLILIBDIR)/libbrotlienc-static.a libbrotlienc-static.a
 
 framebench: framebench.c liblz4.a libzstd.a
-	$(CC) $(FLAGS) -I$(LZ4LIBDIR) -I$(ZSTDLIBDIR) -o framebench framebench.c liblz4.a libzstd.a $(LDFLAGS)
+	$(CC) $(FLAGS) $(LZ4INCLUDES) $(ZSTDINCLUDES) -o framebench framebench.c liblz4.a libzstd.a $(LDFLAGS)
 
 framebench-lz4: FLAGS+=$(LZ4FLAGS)
 framebench-lz4: LDFLAGS+=$(LZ4LDFLAGS)
@@ -68,8 +74,8 @@ framebench-zstd: framebench.c libzstd.a
 
 framebench-brotli: FLAGS+=$(BROTLIFLAGS)
 framebench-brotli: LDFLAGS+=$(BROTLILDFLAGS)
-framebench-brotli: framebench.c libbrotli.a
-	$(CC) $(FLAGS) -o framebench-brotli framebench.c libbrotli.a $(LDFLAGS)
+framebench-brotli: framebench.c libbrotlicommon-static.a libbrotlidec-static.a libbrotlienc-static.a
+	$(CC) $(FLAGS) -o framebench-brotli framebench.c libbrotlidec-static.a libbrotlienc-static.a libbrotlicommon-static.a $(LDFLAGS)
 
 .PHONY: zstdcompare
 zstdcompare: framebench-zstd-dev framebench-zstd-exp
@@ -92,6 +98,8 @@ framebench-zstd-dev:
 	make framebench-zstd -j32 ZSTDDIR=$(ZSTD2DIR) CC="$(CC)" MOREFLAGS="$(MOREFLAGS)"
 	mv framebench-zstd framebench-zstd-dev
 
+regressiontest : regressiontest.c libzstd.a
+	$(CC) $(FLAGS) $(ZSTDINCLUDES) -o regressiontest regressiontest.c libzstd.a $(LDFLAGS)
 
 .PHONY: clean
 clean:
@@ -99,11 +107,11 @@ clean:
 
 .PHONY: clean-zstd
 clean-zstd:
-	$(MAKE) -C $(ZSTDLIBDIR) clean
+	$(MAKE) -C $(ZSTDDIR) clean
 
 .PHONY: clean-lz4
 clean-lz4:
-	$(MAKE) -C $(LZ4LIBDIR) clean
+	$(MAKE) -C $(LZ4DIR) clean
 
 .PHONY: clean-brotli
 clean-brotli:

@@ -10,6 +10,10 @@ import stat
 import numpy
 import subprocess
 
+sys.path.append(".")
+
+import graph
+
 # (branch, compiler, corpus, function, clevel, size) -> [speeds]
 
 # such as produced by, for example,
@@ -492,21 +496,21 @@ def main():
 
           series = [src.series(f, f, cl) for src in sources_to_use for cl in clevels_to_use]
 
-          series_colors = {}
-          series_colors.update({"%s:%s:%s:%s:%s" % (start_branch, c, cc, f, cl): "red!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
-          series_colors.update({"%s:%s:%s:%s:%s" % (end_branch, c, cc, f, cl): "green!25!gray, opacity=.1" for c in corpuses_to_use for cl in clevels_to_use})
-          series_colors.update({"%s:%s:%s:%s:%s" % (br1, c, cc, f, cl): "red!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
-          series_colors.update({"%s:%s:%s:%s:%s" % (br2, c, cc, f, cl): "green!50!gray" for c in corpuses_to_use for cl in clevels_to_use})
-          for s in series:
-            s._color = series_colors.get(s.name(), s._color)
-
-          plot = gen_plot(
-            series,
-            # "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, BR_LABELS.get(br1, br1), BR_LABELS.get(br2, br2)),
+          plot = gen_new_plot(
             "%s" % (f.replace("_", r"\_")),
-            # None,
-            min_x, max_x, min_y, max_y,
+            series,
+            {},
+            None,
+            None,
           )
+
+          # plot = gen_plot(
+          #   series,
+          #   # "%s (%s): %s ({\\tt %s} $\\to$ {\\tt %s}) " % (f.replace("_", r"\_"), cc, corpus, BR_LABELS.get(br1, br1), BR_LABELS.get(br2, br2)),
+          #   "%s" % (f.replace("_", r"\_")),
+          #   # None,
+          #   min_x, max_x, min_y, max_y,
+          # )
 
           prefix = "%s-%s-%02d-%s-%s-%s-all-cls" % (corpus, cc, brnum, br1, br2, f)
           prefixes_and_plots.append((prefix, plot))
@@ -860,6 +864,37 @@ def gen_plot(series, title, min_x, max_x, min_y, max_y, log_x=True, log_y=True):
   ls.append(r"\end{document}")
 
   return "\n".join(ls)
+
+
+def gen_new_plot(title, new_speeds, old_speeds, new_ratios, old_ratios):
+  x_axis = graph.LogAxis(2)
+  x_axis.set_title("Uncompressed Size")
+  x_axis.set_marks(graph.ManualLogMarks())
+  x_axis.set_pos(0)
+  x_axis.set_size(16)
+
+  speed_plot = graph.Plot()
+  speed_plot.set_title(title)
+
+  speed_plot.set_x_axis(x_axis)
+
+  speed_y_axis = graph.LogAxis(2)
+  speed_plot.set_y_axis(speed_y_axis)
+  speed_plot.set_height(16)
+  speed_plot.set_y_pos(0)
+
+  for speeds_dict, color in (
+    (old_speeds, "red!50!black"),
+    (new_speeds, "green!50!black"),
+  ):
+    for series_name, speeds in speeds_dict:
+      data = { k: VAL_REDUCER(v) for k, v in speeds.data().items() }
+      s = graph.Series(data)
+      s.set_line_style(color)
+      speed_plot.add_series(s)
+
+  d = graph.Document([speed_plot])
+
 
 def set_up_render(prefix, plot, png_files, pdflatex_cmds, convert_cmds):
   tex_file = "%s.tex" % (prefix)
