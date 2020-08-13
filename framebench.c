@@ -30,6 +30,10 @@
 #include "brotli/encode.h"
 #endif
 
+#ifdef BENCH_ZLIB
+#include <zlib.h>
+#endif
+
 #define CHECK_R(err, ...) do { if (err) { \
   fprintf(stderr, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__); \
   fprintf(stderr, __VA_ARGS__); \
@@ -123,6 +127,9 @@ typedef struct {
 #ifdef BENCH_BROTLI
   BrotliEncoderState *brcctx;
   BrotliDecoderState *brdctx;
+#endif
+#ifdef BENCH_ZLIB
+  z_stream *gzctx;
 #endif
   const char *dictbuf;
   size_t dictsize;
@@ -500,6 +507,40 @@ size_t brotli_compress(bench_params_t *p) {
 }
 #endif
 
+#ifdef BENCH_ZLIB
+size_t compress_gz(bench_params_t* p) {
+  z_stream *gzctx = &p->gzctx[p->curcctx];
+  char *obuf = p->obuf;
+  size_t osize = p->osize;
+  const char* isample = p->isample;
+  size_t isize = p->isize;
+  int clevel = p->clevel;
+
+  size_t oused;
+
+  if (deflateInit(gzctx, clevel) != Z_OK) {
+    return 0;
+  }
+
+  gzctx->next_in = isample;
+  gzctx->avail_in = isize;
+  gzctx->next_out = obuf;
+  gzctx->avail_out = osize;
+
+  if (deflate(gzctx, Z_FINISH) != Z_STREAM_END) {
+    return 0;
+  }
+
+  oused = gzctx->total_out;
+
+  if (deflateEnd(gzctx) != Z_OK) {
+    return 0;
+  }
+
+  return oused;
+}
+#endif
+
 #ifdef BENCH_LZ4
 size_t check_lz4(bench_params_t *p, size_t csize) {
   (void)csize;
@@ -544,10 +585,20 @@ size_t check_zstd(bench_params_t *p, size_t csize) {
 
 #ifdef BENCH_BROTLI
 size_t check_brotli(bench_params_t *p, size_t csize) {
-  // (void)csize;
+  (void)csize;
+  (void)p;
   // memset(p->checkbuf, 0xFF, p->checksize);
   // return ZSTD_decompress_usingDDict(p->zdctx, p->checkbuf, p->checksize, p->obuf, csize, p->zddict) == p->isize
   //     && !memcmp(p->isample, p->checkbuf, p->isize);
+  return 1;
+}
+#endif
+
+#ifdef BENCH_ZLIB
+size_t check_gz(bench_params_t *p, size_t csize) {
+  (void)csize;
+  (void)p;
+  // TODO
   return 1;
 }
 #endif
@@ -953,9 +1004,9 @@ int main(int argc, char *argv[]) {
 #ifdef BENCH_LZ4
   memset(&prefs, 0, sizeof(prefs));
   prefs.autoFlush = 1;
-  if (in_size < 64 * 1024)
-    prefs.frameInfo.blockMode = LZ4F_blockIndependent;
-  prefs.frameInfo.contentSize = in_size;
+  // if (in_size < 64 * 1024)
+  //   prefs.frameInfo.blockMode = LZ4F_blockIndependent;
+  // prefs.frameInfo.contentSize = in_size;
 
   memset(&options, 0, sizeof(options));
   options.stableSrc = 1;
@@ -1041,6 +1092,17 @@ int main(int argc, char *argv[]) {
   CHECK(!brdctx, "BrotliDecoderCreateInstance failed");
 #endif
 
+#ifdef BENCH_ZLIB
+  params.gzctx = malloc(args.num_contexts * sizeof(z_stream));
+  CHECK(!params.gzctx, "Creating zlib ctxes failed");
+  for (i = 0; i < args.num_contexts; i++) {
+    memset(&params.gzctx[i], 0, sizeof(z_stream));
+    params.gzctx[i].zalloc = Z_NULL;
+    params.gzctx[i].zfree = Z_NULL;
+    params.gzctx[i].opaque = Z_NULL;
+  }
+#endif
+
 #ifdef BENCH_LZ4
   if ((size_t)LZ4_compressBound(params.max_input_size) > out_size) {
     out_size = LZ4_compressBound(params.max_input_size);
@@ -1057,6 +1119,11 @@ int main(int argc, char *argv[]) {
 #ifdef BENCH_BROTLI
   if (BrotliEncoderMaxCompressedSize(params.max_input_size) > out_size) {
     out_size = BrotliEncoderMaxCompressedSize(params.max_input_size);
+  }
+#endif
+#ifdef BENCH_ZLIB
+  if (compressBound(params.max_input_size) > out_size) {
+    out_size = compressBound(params.max_input_size);
   }
 #endif
   out_buf = (char *)malloc(out_size);
@@ -1077,69 +1144,80 @@ int main(int argc, char *argv[]) {
   params.clevel = 1;
 
 #ifdef BENCH_LZ4
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    bench("LZ4_compress_default"         , NULL, compress_default    , check_lz4 , &params, &args);
-  }
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   for (i = 0; i < args.outer_reps; i++)
+  //   bench("LZ4_compress_default"         , NULL, compress_default    , check_lz4 , &params, &args);
+  // }
 
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
     params.clevel = clevel;
+    for (i = 0; i < args.outer_reps; i++)
     bench("LZ4_compress_fast_extState"   , NULL, compress_extState   , check_lz4 , &params, &args);
   }
 
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    bench("LZ4_compress_HC"              , NULL, compress_hc         , check_lz4 , &params, &args);
-  }
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   for (i = 0; i < args.outer_reps; i++)
+  //   bench("LZ4_compress_HC"              , NULL, compress_hc         , check_lz4 , &params, &args);
+  // }
 
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    bench("LZ4_compress_HC_extStateHC"   , NULL, compress_hc_extState, check_lz4 , &params, &args);
-  }
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   for (i = 0; i < args.outer_reps; i++)
+  //   bench("LZ4_compress_HC_extStateHC"   , NULL, compress_hc_extState, check_lz4 , &params, &args);
+  // }
 
   if (args.dict_fn) {
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
       params.clevel = clevel;
+      for (i = 0; i < args.outer_reps; i++)
       bench("LZ4_compress_attach_dict"    , NULL, compress_dict        , check_lz4 , &params, &args);
     }
 
-    for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-      params.clevel = clevel;
-      bench("LZ4_compress_HC_attach_dict" , NULL, ompress_hc_dict     , check_lz4 , &params, &args);
-    }
+    // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    //   params.clevel = clevel;
+    //   for (i = 0; i < args.outer_reps; i++)
+    //   bench("LZ4_compress_HC_attach_dict" , NULL, compress_hc_dict     , check_lz4 , &params, &args);
+    // }
   }
 
-  params.cdict = NULL;
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    params.prefs->compressionLevel = clevel;
-    bench("LZ4F_compressFrame"           , NULL, compress_frame      , check_lz4f, &params, &args);
-  }
+  // params.cdict = NULL;
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   params.prefs->compressionLevel = clevel;
+  //   for (i = 0; i < args.outer_reps; i++)
+  //   bench("LZ4F_compressFrame"           , NULL, compress_frame      , check_lz4f, &params, &args);
+  // }
 
-  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-    params.clevel = clevel;
-    params.prefs->compressionLevel = clevel;
-    bench("LZ4F_compressBegin"           , NULL, compress_begin      , check_lz4f, &params, &args);
-  }
+  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //   params.clevel = clevel;
+  //   params.prefs->compressionLevel = clevel;
+  //   for (i = 0; i < args.outer_reps; i++)
+  //   bench("LZ4F_compressBegin"           , NULL, compress_begin      , check_lz4f, &params, &args);
+  // }
   
-  if (args.dict_fn) {
-    params.cdict = cdict;
-    for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-      params.clevel = clevel;
-      params.prefs->compressionLevel = clevel;
-      bench("LZ4F_compressFrame_usingCDict", NULL, compress_frame      , check_lz4f, &params, &args);
-    }
+  // if (args.dict_fn) {
+  //   params.cdict = cdict;
+  //   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //     params.clevel = clevel;
+  //     params.prefs->compressionLevel = clevel;
+  //     for (i = 0; i < args.outer_reps; i++)
+  //     bench("LZ4F_compressFrame_usingCDict", NULL, compress_frame      , check_lz4f, &params, &args);
+  //   }
 
-    for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-      params.clevel = clevel;
-      params.prefs->compressionLevel = clevel;
-      bench("LZ4F_compressBegin_usingCDict", NULL, compress_begin      , check_lz4f, &params, &args);
-    }
-  }
+  //   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+  //     params.clevel = clevel;
+  //     params.prefs->compressionLevel = clevel;
+  //     for (i = 0; i < args.outer_reps; i++)
+  //     bench("LZ4F_compressBegin_usingCDict", NULL, compress_begin      , check_lz4f, &params, &args);
+  //   }
+  // }
 #endif
 
 #ifdef BENCH_ZSTD
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel > ZSTD_maxCLevel()) continue;
     if (clevel == 0) continue;
     params.clevel = clevel;
     for (i = 0; i < args.outer_reps; i++)
@@ -1147,6 +1225,7 @@ int main(int argc, char *argv[]) {
   }
 
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel > ZSTD_maxCLevel()) continue;
     if (clevel == 0) continue;
     params.clevel = clevel;
     for (i = 0; i < args.outer_reps; i++)
@@ -1154,6 +1233,7 @@ int main(int argc, char *argv[]) {
   }
 
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel > ZSTD_maxCLevel()) continue;
     if (clevel == 0) continue;
     params.clevel = clevel;
     for (i = 0; i < args.outer_reps; i++)
@@ -1162,6 +1242,7 @@ int main(int argc, char *argv[]) {
 
   if (args.dict_fn) {
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+      if (clevel > ZSTD_maxCLevel()) continue;
       if (clevel == 0) continue;
       params.clevel = clevel;
       for (i = 0; i < args.outer_reps; i++)
@@ -1169,6 +1250,7 @@ int main(int argc, char *argv[]) {
     }
 
     for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+      if (clevel > ZSTD_maxCLevel()) continue;
       if (clevel == 0) continue;
       params.clevel = clevel;
       for (i = 0; i < args.outer_reps; i++)
@@ -1178,6 +1260,7 @@ int main(int argc, char *argv[]) {
     // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
     //   if (clevel == 0) continue;
     //   params.clevel = clevel;
+    //   for (i = 0; i < args.outer_reps; i++)
     //   bench("ZSTD_compress_usingCDict_split",
     //         zstd_setup_compress_cdict_split_params,
     //         zstd_compress_cdict_split_params,
@@ -1188,8 +1271,21 @@ int main(int argc, char *argv[]) {
 
 #ifdef BENCH_BROTLI
   for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel < BROTLI_MIN_QUALITY) continue;
+    if (clevel > BROTLI_MAX_QUALITY) continue;
     params.clevel = clevel;
+    for (i = 0; i < args.outer_reps; i++)
     bench("BrotliEncoderCompress"          , NULL, brotli_compress        , check_brotli, &params, &args);
+  }
+#endif
+
+#ifdef BENCH_ZLIB
+  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel < Z_NO_COMPRESSION) continue;
+    if (clevel > Z_BEST_COMPRESSION) continue;
+    params.clevel = clevel;
+    for (i = 0; i < args.outer_reps; i++)
+    bench("compress_gz", NULL, compress_gz, check_gz, &params, &args);
   }
 #endif
 

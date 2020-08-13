@@ -3,15 +3,17 @@
 import re
 import subprocess
 
-min_level = 1
-max_level = 22
-time = 50
-time_unit = "ms"
-min_reps = 16
+min_level     = -10
+max_level     = 22
+time          = 100
+time_unit     = "ms"
+min_reps      = 2 ** 3
+outer_reps    = 2 ** 0
 starting_iter = 0
-num_ctxs = 1
-corpus = "osdb"
-size = 2 ** 10
+num_ctxs      = 1
+corpus        = "dickens"
+size          = 2 ** 5
+use_dict      = True
 
 use_numa = False
 use_nice = True
@@ -22,6 +24,8 @@ wait = False
 
 dict_fn = "bench/dicts/%s.zstd-dict" % (corpus,)
 in_fn = "bench/tmp/%s-in-%d" % (corpus, size)
+# in_fn = "tmp-sample-dir"
+
 
 # dict_fn = "udb-4KB-data-blocks/dict7310441_8KB"
 # in_fn = "udb-4KB-data-blocks/7310441/data_block_000001.data"
@@ -37,15 +41,18 @@ if use_nice:
   pre_args += ["nice", "-n", "-10"]
 
 args = [
-  "-D", dict_fn,
   "-i", in_fn,
   "-b", str(min_level),
   "-e", str(max_level),
   "-t", str(time) + time_unit,
   "-n", str(min_reps),
+  "-R", str(outer_reps),
   "-s", str(starting_iter),
   "-c", str(num_ctxs),
 ]
+
+if use_dict:
+  args += ["-D", dict_fn]
 
 RUN_RE = re.compile(
     r'^(?P<run_name>[A-Za-z0-9_\-.]+) *: *' +
@@ -107,6 +114,7 @@ def main():
     el = el.decode("utf-8").rstrip()
     dm = RUN_RE.match(dl)
     em = RUN_RE.match(el)
+
     # print(dl)
     # print(el)
 
