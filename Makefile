@@ -80,6 +80,8 @@ zstdcompare: framebench-zstd-dev framebench-zstd-exp
 framebench-zstd-exp framebench-zstd-dev: MOREFLAGS?=-O3 -march=native -mtune=native -ggdb -DBENCH_TARGET_NANOSEC=250000000ull -DNDEBUG
 # framebench-zstd-exp framebench-zstd-dev: MOREFLAGS+=-Og -ggdb -DDEBUGLEVEL=4 -DBENCH_TARGET_NANOSEC=250000000ull
 framebench-zstd-exp framebench-zstd-dev: CC?=gcc-8
+framebench-zstd-dev: MOREFLAGS+= -DFRAMEBENCH_DEV
+framebench-zstd-exp: MOREFLAGS+= -DFRAMEBENCH_EXP
 
 .PHONY: framebench-zstd-exp
 framebench-zstd-exp:
