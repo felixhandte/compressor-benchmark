@@ -1277,13 +1277,13 @@ int main(int argc, char *argv[]) {
   //   bench("ZSTD_compress"                , NULL, zstd_compress_default, check_zstd, &params, &args);
   // }
 
-  // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
-  //   if (clevel > ZSTD_maxCLevel()) continue;
-  //   if (clevel == 0) continue;
-  //   params.clevel = clevel;
-  //   for (i = 0; i < args.outer_reps; i++)
-  //   bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
-  // }
+  for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
+    if (clevel > ZSTD_maxCLevel()) continue;
+    if (clevel == 0) continue;
+    params.clevel = clevel;
+    for (i = 0; i < args.outer_reps; i++)
+    bench("ZSTD_compressCCtx"            , NULL, zstd_compress_cctx   , check_zstd, &params, &args);
+  }
 
   // for (clevel = args.min_clevel; clevel <= args.max_clevel; clevel++) {
   //   if (clevel > ZSTD_maxCLevel()) continue;

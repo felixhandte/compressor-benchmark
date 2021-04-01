@@ -12,10 +12,10 @@ time          = 0
 time_unit     = "ms"
 # min_reps      = 2 ** 12
 min_reps      = 10000
-outer_reps    = 2 ** 3
+outer_reps    = 2 ** 2
 starting_iter = 0
 num_ctxs      = 2 ** 0
-num_dicts     = 2 ** 6
+num_dicts     = 2 ** 0
 # corpus        = "dickens"
 # size          = 2 ** 5
 use_dict      = True
@@ -137,7 +137,7 @@ def bench(args):
     ratio_diff = 100 * (1.0 - float(em.group("bytes_out")) / float(dm.group("bytes_out")))
     speed_diff = 100 * (float(em.group("speed")) / float(dm.group("speed")) - 1.0)
 
-    speeds.setdefault(int(dm.group("clevel")), []).append(speed_diff)
+    speeds.setdefault((dm.group("function"), int(dm.group("clevel"))), []).append(speed_diff)
 
     print("%s vs %s: %-30s @ lvl %3s, %3s ctxs: %8s B -> %11s vs %11s B (%s%%), %7s vs %7s iters, %7s vs %7s MB/s (%s%%)" % (
       dm.group("run_name"),
@@ -167,22 +167,26 @@ def bench(args):
   dev_p.wait()
   exp_p.wait()
 
-  for clevel, diffs in sorted(speeds.items()):
-    print("lvl %3s summary: %7s%% (%7s%%δ)" % (clevel, format_float(np.mean(diffs)), format_float(np.std(diffs), c=False)))
+  for (func, clevel), diffs in sorted(speeds.items()):
+    print("%s lvl %3s summary: %7s%% (%7s%%δ)" % (func, clevel, format_float(np.mean(diffs)), format_float(np.std(diffs), c=False)))
 
 def main():
   targets = []
-  # for path in glob.glob("/home/felixh/dev/tmp/managed_compression/trainer/*/*/*/*/"):
-  for path in glob.glob("/home/felixh/prog/compressor-benchmark/tao/*/*/*/"):
-  # for path in glob.glob("/home/felixh/dev/tmp/managed_compression/trainer/tao/tao/fbobj_21507/*/"):
-    in_fn = os.path.join(path, "samples")
-    dicts = glob.glob(os.path.join(path, "cur-dict.*.zstd-dict"))
-    dict_fn = dicts[0] if dicts else None
-    targets.append((in_fn, dict_fn))
+  # for path in glob.glob("/home/felixh/dev/tmp/managed_compression/trainer/datainfra_scribeh_calligraphus/*/*/*/"):
+  # # for path in glob.glob("/home/felixh/prog/compressor-benchmark/tao/*/*/*/"):
+  # # for path in glob.glob("/home/felixh/dev/tmp/managed_compression/trainer/tao/tao/fbobj_21507/*/"):
+  #   in_fn = os.path.join(path, "samples")
+  #   dicts = glob.glob(os.path.join(path, "cur-dict.*.zstd-dict"))
+  #   dict_fn = dicts[0] if dicts else None
+  #   targets.append((in_fn, dict_fn))
 
-    num_samples = len(glob.glob(os.path.join(in_fn, "*")))
+  targets.append((
+    "/home/felixh/prog/silesia/http",
+    "/home/felixh/prog/silesia/http.zstd-dict"
+  ))
 
   for in_fn, dict_fn in targets:
+    num_samples = len(glob.glob(os.path.join(in_fn, "*")))
     args = [
       "-i", in_fn,
       "-b", str(min_level),
